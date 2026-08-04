@@ -1,0 +1,83 @@
+version: 3
+
+projects:
+
+  ####################################
+  # Proxmox Kubernetes Lab
+  ####################################
+  - name: proxmox-lab
+    dir: environments/proxmox/lab
+    workflow: terraform
+    autoplan:
+      enabled: true
+      when_modified:
+        - "*.tf"
+        - "*.tfvars"
+        - "../../modules/**"
+
+  - name: proxmox-production
+    dir: environments/proxmox/production
+    workflow: terraform
+    autoplan:
+      enabled: true
+
+
+  ####################################
+  # AWS Kubernetes
+  ####################################
+  - name: aws-dev
+    dir: environments/aws/dev
+    workflow: terraform
+    autoplan:
+      enabled: true
+      when_modified:
+        - "*.tf"
+        - "../../modules/aws/**"
+        - "../../modules/kubernetes/**"
+
+
+  - name: aws-production
+    dir: environments/aws/production
+    workflow: terraform
+    autoplan:
+      enabled: false
+
+
+  ####################################
+  # Google Kubernetes Engine
+  ####################################
+  - name: gcp-production
+    dir: environments/gcp/production
+    workflow: terraform
+    autoplan:
+      enabled: false
+
+
+  ####################################
+  # Alibaba Cloud Kubernetes
+  ####################################
+  - name: aliyun-production
+    dir: environments/aliyun/production
+    workflow: terraform
+    autoplan:
+      enabled: false
+
+
+
+####################################
+# Terraform Workflow
+####################################
+workflows:
+
+  terraform:
+
+    plan:
+      steps:
+        - init
+        - plan:
+            extra_args:
+              - "-lock=true"
+
+    apply:
+      steps:
+        - apply
