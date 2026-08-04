@@ -1,0 +1,64 @@
+repos:
+  ########################################
+  # General Git Checks
+  ########################################
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+
+  ########################################
+  # Terraform
+  ########################################
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.0
+    hooks:
+
+      # terraform fmt
+      - id: terraform_fmt
+
+      # terraform validate
+      - id: terraform_validate
+
+      # terraform docs generator
+      - id: terraform_docs
+
+
+  ########################################
+  # Terraform Security
+  ########################################
+  - repo: https://github.com/aquasecurity/tfsec
+    rev: v1.28.10
+    hooks:
+      - id: tfsec
+
+
+  ########################################
+  # Secret Detection
+  ########################################
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.28.0
+    hooks:
+      - id: gitleaks
+
+
+  ########################################
+  # YAML / Kubernetes
+  ########################################
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+
+
+  ########################################
+  # Markdown
+  ########################################
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.45.0
+    hooks:
+      - id: markdownlint
