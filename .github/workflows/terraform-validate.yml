@@ -1,0 +1,35 @@
+---
+name: Terraform Validate
+
+"on":
+  pull_request:
+    paths:
+      - "**/*.tf"
+
+jobs:
+  validate:
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        terraform:
+          - environments/proxmox/lab
+          - environments/aws/dev
+          - environments/gcp/dev
+          - environments/aliyun/dev
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version_file: .terraform-version
+
+      - name: Terraform Init
+        working-directory: ${{ matrix.terraform }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate
+        working-directory: ${{ matrix.terraform }}
+        run: terraform validate

@@ -1,0 +1,24 @@
+---
+name: Release
+
+# on:
+#   push:
+#     tags:
+#       - "v*"
+
+"on":
+  workflow_dispatch:
+
+jobs:
+
+  release:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2

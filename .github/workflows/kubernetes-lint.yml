@@ -1,0 +1,32 @@
+---
+name: Kubernetes Validate
+
+# on:
+#   pull_request:
+#     paths:
+#       - "kubernetes/**"
+
+"on":
+  workflow_dispatch:
+
+jobs:
+
+  kube:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+
+      - name: Install kubeconform
+        run: |
+          curl -L \
+            https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz
+
+
+      - name: Validate manifests
+        run: |
+          ./kubeconform -summary kubernetes/**/*.yaml

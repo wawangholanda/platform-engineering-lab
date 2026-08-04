@@ -1,3 +1,4 @@
+---
 version: 3
 
 projects:
@@ -61,8 +62,6 @@ projects:
     workflow: terraform
     autoplan:
       enabled: false
-
-
 
 ####################################
 # Terraform Workflow

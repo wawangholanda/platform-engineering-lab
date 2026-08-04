@@ -1,0 +1,24 @@
+---
+name: Terraform Docs
+
+"on":
+  pull_request:
+    paths:
+      - "modules/**"
+
+jobs:
+
+  docs:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+
+      - name: terraform-docs
+        uses: terraform-docs/gh-actions@v1
+        with:
+          working-dir: .
+          output-file: README.md

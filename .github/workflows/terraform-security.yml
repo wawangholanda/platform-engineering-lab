@@ -1,0 +1,24 @@
+---
+name: Terraform Security Scan
+
+"on":
+  pull_request:
+
+jobs:
+  security:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - uses: actions/checkout@v4
+
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1
+
+
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
