@@ -1,6 +1,13 @@
 #####################################
 # Terraform
 #####################################
+# Terraform
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/.terraform.lock.hcl
+**/terraform.tfvars
+**/terraform.tfvars.json
 
 # Terraform working directory
 .terraform/
