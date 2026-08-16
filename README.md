@@ -3,19 +3,22 @@
 A hands-on Platform Engineering laboratory for building, automating,
 and operating infrastructure across multiple platforms.
 
+The project focuses on Infrastructure as Code, configuration management,
+Kubernetes, GitOps, observability, security, and highly available
+infrastructure using reproducible automation.
+
 ## Overview
 
-This project explores Infrastructure as Code, configuration management,
-Kubernetes, GitOps, observability, and security using reproducible
-automation.
-
-The project is designed to support multiple infrastructure platforms:
+The laboratory is designed to support multiple infrastructure platforms:
 
 - Proxmox
 - AWS
 - Google Cloud
 - Alibaba Cloud
 - Future platforms
+
+The goal is to maintain a consistent Platform Engineering approach
+across different infrastructure environments.
 
 ## Current Implementation
 
@@ -29,100 +32,277 @@ Current stack:
 - Terraform — infrastructure provisioning
 - Ansible — configuration management
 - Kubernetes 1.34
-- containerd
-- Cilium
-- HAProxy
-- Keepalived
-- Helm
+- containerd — container runtime
+- Cilium — CNI
+- HAProxy — Kubernetes API load balancing
+- Keepalived — virtual IP / load balancer HA
+- Helm — Kubernetes package management
 
-Architecture:
+### Architecture
 
 ```text
-                    Kubernetes API
-                    Virtual IP
-                         |
-                  +------+------+
-                  |             |
-                LB01          LB02
-              HAProxy       HAProxy
-             Keepalived     Keepalived
-                  |             |
-                  +------+------+
-                         |
-              +----------+----------+
-              |          |          |
-             CP01       CP02       CP03
-              |
-          +---+---+
-          |       |
-        Worker1 Worker2
+                       Kubernetes API
+                            |
+                    Virtual IP (VIP)
+                    192.168.1.30:6443
+                            |
+                 +----------+----------+
+                 |                     |
+              LB01                    LB02
+          192.168.1.25           192.168.1.26
+            HAProxy                HAProxy
+           Keepalived             Keepalived
+                 |                     |
+                 +----------+----------+
+                            |
+             +--------------+--------------+
+             |              |              |
+            CP01           CP02           CP03
+          192.168.1.20    192.168.1.23    192.168.1.24
+             |
+        +----+----+
+        |         |
+      Worker01  Worker02
+      192.168.1.21  192.168.1.22
+```
+
+## Infrastructure Workflow
+
+The current infrastructure follows this workflow:
+
+```text
+Terraform
+    |
+    v
+Proxmox Infrastructure
+    |
+    v
+Ansible
+    |
+    v
+Operating System Configuration
+    |
+    v
+Kubernetes Cluster
+    |
+    v
+Cilium / Helm / Platform Services
+    |
+    v
+GitOps / Observability / Security
+```
+
+Terraform is responsible for provisioning infrastructure, while Ansible
+configures the operating systems and bootstraps the Kubernetes platform.
 
 ## Repository Structure
+
+```text
 platform-engineering-lab/
-├── environments/     # Environment-specific Terraform
-├── modules/          # Reusable Terraform modules
-├── ansible/          # Configuration management
-├── kubernetes/       # Kubernetes platform components
-├── docs/             # Technical documentation
-└── .github/          # CI/CD workflows
+├── environments/
+│   └── dev/
+│       └── proxmox/       # Environment-specific Terraform
+│
+├── modules/
+│   └── proxmox-vm/        # Reusable Terraform modules
+│
+├── ansible/
+│   ├── inventory/         # Environment inventories
+│   ├── roles/             # Ansible roles
+│   └── site.yml           # Main Ansible playbook
+│
+├── kubernetes/            # Kubernetes platform components
+├── docs/                  # Technical documentation
+│
+├── .github/               # GitHub Actions workflows
+├── .gitignore
+├── .pre-commit-config.yaml
+├── LICENSE
+└── README.md
+```
 
-## Workflow
-Terraform
-    ↓
-Infrastructure
-    ↓
-Ansible
-    ↓
-Kubernetes
-    ↓
-GitOps / Platform Services
+## Kubernetes Automation
 
+The Kubernetes cluster is bootstrapped using Ansible.
+
+The automation currently handles:
+
+- Common Kubernetes node configuration
+- Swap configuration
+- Kernel modules and sysctl
+- containerd configuration
+- Kubernetes package installation
+- First control-plane bootstrap
+- Additional control-plane nodes
+- Worker nodes
+- Cilium installation
+- Helm installation
+- HAProxy configuration
+- Keepalived configuration
+
+The playbooks are designed to be idempotent so they can safely be
+re-applied to an existing environment.
+
+## High Availability
+
+The Kubernetes API endpoint is exposed through a virtual IP:
+
+```text
+192.168.1.30:6443
+```
+
+Two load balancer nodes provide high availability:
+
+```text
+LB01
+192.168.1.25
+HAProxy + Keepalived
+MASTER
+
+LB02
+192.168.1.26
+HAProxy + Keepalived
+BACKUP
+```
+
+HAProxy distributes Kubernetes API traffic across the control-plane nodes.
+
+Keepalived provides the virtual IP and failover between the load balancers.
+
+## Infrastructure as Code
+
+Terraform is used to provision the Proxmox infrastructure.
+
+The Terraform structure separates:
+
+- Environment configuration
+- Reusable modules
+- Provider configuration
+- VM definitions
+- Infrastructure variables
+
+The long-term goal is to use the same Infrastructure as Code principles
+across Proxmox and public cloud environments.
 
 ## Roadmap
-Terraform + Proxmox
-HA Kubernetes cluster
-Ansible automation
-HAProxy + Keepalived
-Cilium
-Helm
-Argo CD
-Monitoring
-Logging
-Security
-GitHub Actions
-Atlantis
-AWS
-Google Cloud
-Alibaba Cloud
 
+### Completed
+
+- [x] Terraform + Proxmox
+- [x] Reusable Terraform VM module
+- [x] Ansible automation
+- [x] Highly available Kubernetes control plane
+- [x] HAProxy
+- [x] Keepalived
+- [x] Cilium
+- [x] Helm
+- [x] Kubernetes worker nodes
+- [x] Idempotent Ansible configuration
+
+### In Progress
+
+- [ ] Argo CD
+- [ ] Monitoring
+- [ ] Logging
+- [ ] Security automation
+- [ ] GitHub Actions
+- [ ] Atlantis
+- [ ] Platform documentation
+
+### Planned Platforms
+
+- [ ] AWS
+- [ ] Google Cloud
+- [ ] Alibaba Cloud
+- [ ] Additional infrastructure platforms
+
+Each platform will be implemented as a separate environment while
+reusing common Platform Engineering principles and automation patterns.
 
 ## Security
 
-Secrets and credentials are never committed to the repository.
+Secrets, credentials, private keys, and other sensitive configuration
+must never be committed to the repository.
 
-Sensitive configuration is stored locally and excluded using .gitignore.
+Sensitive values are stored locally and excluded through `.gitignore`.
 
-See the documentation for details.
+Example:
 
-Documentation
-Architecture
+```text
+.env
+*.tfvars
+*.tfstate
+*.tfstate.*
+```
 
-Proxmox
+Example configuration files containing sensitive values should use
+placeholder values only.
 
-Kubernetes
+## Development Workflow
 
-Ansible
+Changes are intended to follow this workflow:
 
-Roadmap
+```text
+Local Development
+       |
+       v
+Terraform Validate / Plan
+       |
+       v
+Ansible Syntax Check
+       |
+       v
+Ansible Playbook
+       |
+       v
+Kubernetes Validation
+       |
+       v
+Git Commit
+       |
+       v
+GitHub
+       |
+       v
+CI/CD
+```
+
+Pre-commit hooks are used to maintain repository consistency and detect
+common issues before changes are committed.
+
+## Documentation
+
+Technical documentation will be maintained under:
+
+```text
+docs/
+├── architecture/
+├── proxmox/
+├── kubernetes/
+├── ansible/
+├── terraform/
+└── operations/
+```
 
 ## Purpose
 
-This project is a practical Platform Engineering laboratory and portfolio,
-focused on reproducible, automated, highly available, and scalable
-infrastructure.
+This project is a practical Platform Engineering laboratory and portfolio
+focused on:
 
-License
+- Reproducible infrastructure
+- Infrastructure as Code
+- Configuration management
+- Highly available systems
+- Kubernetes
+- Automation
+- GitOps
+- Observability
+- Security
+- Multi-platform infrastructure
 
-See LICENSE
+The project is intended to evolve from a Proxmox-based Kubernetes
+laboratory into a multi-platform Platform Engineering environment.
 
-.
+## License
+
+See [LICENSE](LICENSE).
