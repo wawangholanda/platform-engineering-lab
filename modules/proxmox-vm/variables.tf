@@ -62,3 +62,10 @@ variable "nameserver" {
   type        = string
   default     = "192.168.1.1"
 }
+
+variable "ssh_public_key" {
+  description = "SSH public key injected into the VM via Proxmox Cloud-Init"
+  type        = string
+  sensitive   = false
+  default     = null
+}

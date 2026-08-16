@@ -1,0 +1,9 @@
+---
+- name: Apply Kubernetes sysctl
+  ansible.builtin.command:
+    cmd: sysctl --system
+
+- name: Restart containerd
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted

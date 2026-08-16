@@ -1,0 +1,197 @@
+---
+# =========================================================
+# APT repository cleanup
+# =========================================================
+
+- name: Remove malformed Kubernetes deb822 repository
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/kubernetes.sources
+    state: absent
+
+
+# =========================================================
+# Swap
+# =========================================================
+
+- name: Check active swap
+  ansible.builtin.command:
+    cmd: swapon --show --noheadings
+  register: active_swap
+  changed_when: false
+
+- name: Disable swap
+  ansible.builtin.command:
+    cmd: swapoff -a
+  when: active_swap.stdout | length > 0
+
+- name: Disable swap permanently in fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^(\s*[^#]\S+\s+\S+\s+swap\s+\S+.*)$'
+    replace: '# \1'
+
+
+# =========================================================
+# Kernel modules
+# =========================================================
+
+- name: Configure Kubernetes kernel modules
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k8s.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      overlay
+      br_netfilter
+
+- name: Load overlay kernel module
+  community.general.modprobe:
+    name: overlay
+    state: present
+
+- name: Load br_netfilter kernel module
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+
+
+# =========================================================
+# Sysctl
+# =========================================================
+
+- name: Configure Kubernetes sysctl
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+      net.ipv4.ip_forward = 1
+  notify: Apply Kubernetes sysctl
+
+
+# =========================================================
+# Container runtime
+# =========================================================
+
+- name: Install containerd and required packages
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gpg
+      - containerd
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Ensure containerd configuration directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Check whether containerd configuration exists
+  ansible.builtin.stat:
+    path: /etc/containerd/config.toml
+  register: containerd_config
+
+- name: Generate containerd configuration
+  ansible.builtin.shell:
+    cmd: containerd config default > /etc/containerd/config.toml
+  when: not containerd_config.stat.exists
+  notify: Restart containerd
+
+- name: Configure containerd to use systemd cgroups
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup\s*=\s*false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: Ensure containerd is enabled and running
+  ansible.builtin.systemd:
+    name: containerd
+    enabled: true
+    state: started
+
+
+# =========================================================
+# Kubernetes repository
+# =========================================================
+
+- name: Ensure Kubernetes apt keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Download Kubernetes repository signing key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/Release.key"
+    dest: /tmp/kubernetes-release.key
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Dearmor Kubernetes repository signing key
+  ansible.builtin.command:
+    cmd: >
+      gpg --dearmor
+      --yes
+      -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+      /tmp/kubernetes-release.key
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Configure Kubernetes apt repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/kubernetes.list
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/ /
+  register: kubernetes_repository
+
+
+# =========================================================
+# Kubernetes packages
+# =========================================================
+
+- name: Update apt cache after Kubernetes repository change
+  ansible.builtin.apt:
+    update_cache: true
+  when: kubernetes_repository.changed
+
+- name: Install Kubernetes packages
+  ansible.builtin.apt:
+    name:
+      - kubelet
+      - kubeadm
+      - kubectl
+    state: present
+
+- name: Hold Kubernetes packages
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubelet
+    - kubeadm
+    - kubectl
+
+- name: Ensure kubelet is enabled
+  ansible.builtin.systemd:
+    name: kubelet
+    enabled: true
+
+- name: Flush Kubernetes common handlers
+  ansible.builtin.meta: flush_handlers

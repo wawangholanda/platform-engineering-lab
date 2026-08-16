@@ -1,0 +1,76 @@
+---
+# =========================================================
+# Kubernetes Load Balancer
+# =========================================================
+
+- name: Configure Kubernetes Load Balancers
+  hosts: load_balancer
+  become: true
+  roles:
+    - load_balancer
+
+
+# =========================================================
+# Kubernetes common configuration
+# =========================================================
+
+- name: Configure Kubernetes nodes
+  hosts: k8s
+  become: true
+  roles:
+    - k8s_common
+
+
+# =========================================================
+# Bootstrap first control plane
+# =========================================================
+
+- name: Bootstrap Kubernetes control plane
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - k8s_control_plane
+
+
+# =========================================================
+# Join additional control planes
+# =========================================================
+
+- name: Join additional control planes
+  hosts: control_plane
+  become: true
+  roles:
+    - k8s_control_plane_join
+
+
+# =========================================================
+# Install Helm
+# =========================================================
+
+- name: Install Helm
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - helm
+
+
+# =========================================================
+# Install Cilium
+# =========================================================
+
+- name: Install Cilium
+  hosts: control_plane[0]
+  become: false
+  roles:
+    - cilium
+
+
+# =========================================================
+# Join Kubernetes workers
+# =========================================================
+
+- name: Join Kubernetes workers
+  hosts: workers
+  become: true
+  roles:
+    - k8s_worker

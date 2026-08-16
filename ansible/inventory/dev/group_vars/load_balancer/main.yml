@@ -1,0 +1,8 @@
+---
+control_plane_vip: "192.168.1.30"
+
+keepalived_interface: "eth0"
+
+keepalived_auth_pass: "REMOVED_SECRET"
+
+load_balancer_backend_port: 6443

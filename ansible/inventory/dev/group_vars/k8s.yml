@@ -1,0 +1,12 @@
+---
+kubernetes_version: "1.34"
+
+kubernetes_repo_version: "v1.34"
+
+pod_cidr: "10.0.0.0/16"
+
+control_plane_endpoint: "192.168.1.30:6443"
+
+cilium_version: "1.20.0"
+
+helm_version: "v3.21.4"

@@ -1,0 +1,80 @@
+---
+# =========================================================
+# Additional Control Plane
+# =========================================================
+
+- name: Check whether control plane has already joined
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: control_plane_joined
+
+
+# =========================================================
+# Upload control-plane certificates
+# =========================================================
+
+- name: Upload control-plane certificates
+  ansible.builtin.command:
+    cmd: kubeadm init phase upload-certs --upload-certs
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  register: certificate_upload
+  changed_when: false
+  when: >
+    groups['control_plane']
+    | map('extract', hostvars, 'control_plane_joined')
+    | selectattr('stat.exists', 'equalto', false)
+    | list
+    | length > 0
+
+
+# =========================================================
+# Extract certificate key
+# =========================================================
+
+- name: Extract control-plane certificate key
+  ansible.builtin.set_fact:
+    kubeadm_certificate_key: >-
+      {{
+        certificate_upload.stdout_lines
+        | select('match', '^[a-f0-9]{64}$')
+        | list
+        | last
+      }}
+  when:
+    - inventory_hostname != groups['control_plane'][0]
+    - not control_plane_joined.stat.exists
+
+
+# =========================================================
+# Generate bootstrap token
+# =========================================================
+
+- name: Generate control-plane join command
+  ansible.builtin.command:
+    cmd: kubeadm token create --print-join-command
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  register: kubeadm_join_command
+  changed_when: false
+  when:
+    - groups['control_plane']
+      | map('extract', hostvars, 'control_plane_joined')
+      | selectattr('stat.exists', 'equalto', false)
+      | list
+      | length > 0
+
+
+# =========================================================
+# Join additional control plane
+# =========================================================
+
+- name: Join additional control plane
+  ansible.builtin.command:
+    cmd: >-
+      {{ kubeadm_join_command.stdout }}
+      --control-plane
+      --certificate-key {{ kubeadm_certificate_key }}
+  when:
+    - inventory_hostname != groups['control_plane'][0]
+    - not control_plane_joined.stat.exists

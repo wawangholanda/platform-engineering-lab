@@ -18,15 +18,30 @@ resource "proxmox_vm_qemu" "this" {
   cpu {
     cores = var.cores
   }
+
   memory = var.memory
+
+  automatic_reboot = true
 
   scsihw = "virtio-scsi-pci"
 
-  disk {
-    slot    = "scsi0"
-    type    = "disk"
-    storage = var.storage
-    size    = "${var.disk_size}G"
+  disks {
+    scsi {
+      scsi0 {
+        disk {
+          storage = var.storage
+          size    = var.disk_size
+        }
+      }
+    }
+
+    ide {
+      ide2 {
+        cloudinit {
+          storage = var.storage
+        }
+      }
+    }
   }
 
   network {
@@ -41,6 +56,8 @@ resource "proxmox_vm_qemu" "this" {
 
   nameserver = var.nameserver
 
+  sshkeys = var.ssh_public_key
+
   ciuser = "ubuntu"
 
   boot = "order=scsi0"
@@ -49,13 +66,13 @@ resource "proxmox_vm_qemu" "this" {
 
   define_connection_info = false
 
+  agent = 1
+
   lifecycle {
     ignore_changes = [
-      agent,
       vm_state,
       disk[0].format,
       startup_shutdown,
     ]
   }
-
 }

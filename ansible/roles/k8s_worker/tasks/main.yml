@@ -1,0 +1,34 @@
+---
+# =========================================================
+# Worker Join
+# =========================================================
+
+- name: Check whether worker has already joined
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: worker_joined
+
+
+# =========================================================
+# Generate Join Command
+# =========================================================
+
+- name: Generate kubeadm join command
+  ansible.builtin.command:
+    cmd: kubeadm token create --print-join-command
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: kubeadm_join_command
+  changed_when: false
+  when: not worker_joined.stat.exists
+
+
+# =========================================================
+# Join Worker
+# =========================================================
+
+- name: Join worker to Kubernetes cluster
+  ansible.builtin.command:
+    cmd: "{{ kubeadm_join_command.stdout }}"
+  when:
+    - not worker_joined.stat.exists
+    - kubeadm_join_command.stdout is defined

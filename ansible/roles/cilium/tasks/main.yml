@@ -1,0 +1,27 @@
+---
+# =========================================================
+# Cilium
+# =========================================================
+
+- name: Add Cilium Helm repository
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+  become: false
+
+
+- name: Install Cilium
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium/cilium
+    release_namespace: kube-system
+    create_namespace: false
+    chart_version: "{{ cilium_version }}"
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    values:
+      ipam:
+        mode: cluster-pool
+        operator:
+          clusterPoolIPv4PodCIDRList:
+            - "{{ pod_cidr }}"

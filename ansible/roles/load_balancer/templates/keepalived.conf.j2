@@ -1,0 +1,39 @@
+global_defs {
+    router_id {{ keepalived_router_id }}
+    script_user root
+    enable_script_security
+}
+
+vrrp_script chk_haproxy {
+    script "/usr/bin/systemctl is-active --quiet haproxy"
+    interval 2
+    timeout 2
+    fall 2
+    rise 2
+    weight -30
+}
+
+vrrp_instance VI_K8S_API {
+    state {{ keepalived_state }}
+
+    interface {{ keepalived_interface }}
+
+    virtual_router_id 51
+
+    priority {{ keepalived_priority }}
+
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ keepalived_auth_pass }}
+    }
+
+    virtual_ipaddress {
+        {{ control_plane_vip }}/24
+    }
+
+    track_script {
+        chk_haproxy
+    }
+}

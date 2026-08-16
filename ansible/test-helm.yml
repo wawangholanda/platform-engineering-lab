@@ -1,0 +1,6 @@
+---
+- name: Test Helm installation
+  hosts: control_plane
+  become: true
+  roles:
+    - helm

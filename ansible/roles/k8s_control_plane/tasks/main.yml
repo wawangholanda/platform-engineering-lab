@@ -1,0 +1,48 @@
+---
+# =========================================================
+# Bootstrap Control Plane
+# =========================================================
+
+- name: Check whether Kubernetes control plane is initialized
+  ansible.builtin.stat:
+    path: /etc/kubernetes/admin.conf
+  register: kubeadm_initialized
+
+
+- name: Initialize Kubernetes control plane
+  ansible.builtin.command:
+    cmd: >
+      kubeadm init
+        --apiserver-advertise-address={{ ansible_host }}
+        --control-plane-endpoint={{ control_plane_endpoint }}
+        --pod-network-cidr={{ pod_cidr }}
+        --upload-certs
+  when:
+    - inventory_hostname == groups['control_plane'][0]
+    - not kubeadm_initialized.stat.exists
+
+
+# =========================================================
+# kubectl configuration
+# =========================================================
+
+- name: Ensure .kube directory exists
+  ansible.builtin.file:
+    path: /home/ubuntu/.kube
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0700"
+  when: inventory_hostname == groups['control_plane'][0]
+
+
+- name: Copy admin kubeconfig
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/ubuntu/.kube/config
+    remote_src: true
+    owner: ubuntu
+    group: ubuntu
+    mode: "0600"
+  when:
+    - inventory_hostname == groups['control_plane'][0]
