@@ -191,23 +191,41 @@ across Proxmox and public cloud environments.
 - [x] Terraform + Proxmox
 - [x] Reusable Terraform VM module
 - [x] Ansible automation
+- [x] Idempotent Ansible configuration
 - [x] Highly available Kubernetes control plane
 - [x] HAProxy
 - [x] Keepalived
 - [x] Cilium
 - [x] Helm
 - [x] Kubernetes worker nodes
-- [x] Idempotent Ansible configuration
+- [x] NFS server automation
+- [x] NFS client configuration
+- [x] NFS CSI driver
+- [x] Kubernetes StorageClass
+- [x] PersistentVolumeClaim / PersistentVolume testing
+- [x] Persistent storage read/write testing
+- [x] Worker node failure testing
+- [x] Control-plane failure testing
 
-### In Progress
+### Next
 
-- [ ] Argo CD
-- [ ] Monitoring
+- [ ] Argo CD / GitOps
+- [ ] Application deployment through GitOps
+- [ ] Monitoring with Prometheus and Grafana
 - [ ] Logging
-- [ ] Security automation
+- [ ] Kubernetes security automation
+- [ ] NetworkPolicy with Cilium
+- [ ] Backup and disaster recovery
+- [ ] Automated validation and testing
+
+### CI/CD and Platform Automation
+
 - [ ] GitHub Actions
+- [ ] Terraform CI/CD
+- [ ] Ansible CI/CD
+- [ ] Kubernetes manifest validation
 - [ ] Atlantis
-- [ ] Platform documentation
+- [ ] Automated infrastructure testing
 
 ### Planned Platforms
 
