@@ -1,0 +1,175 @@
+---
+- name: Install NFS packages
+  ansible.builtin.apt:
+    name:
+      - nfs-kernel-server
+      - nfs-common
+    state: present
+    update_cache: true
+
+# ---------------------------------------------------------
+# Discover disks
+# ---------------------------------------------------------
+
+- name: Gather block device information
+  ansible.builtin.command:
+    cmd: lsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINTS,PKNAME
+  register: nfs_lsblk
+  changed_when: false
+  check_mode: false
+
+- name: Parse block device information
+  ansible.builtin.set_fact:
+    nfs_block_devices: "{{ (nfs_lsblk.stdout | from_json).blockdevices }}"
+
+- name: Detect root filesystem device
+  ansible.builtin.command:
+    cmd: findmnt -n -o SOURCE /
+  register: nfs_root_device
+  changed_when: false
+  check_mode: false
+
+- name: Determine OS disk
+  ansible.builtin.command:
+    cmd: lsblk -no PKNAME {{ nfs_root_device.stdout }}
+  register: nfs_os_disk
+  changed_when: false
+  check_mode: false
+
+- name: Set OS disk name
+  ansible.builtin.set_fact:
+    nfs_os_disk_name: "{{ nfs_os_disk.stdout | trim }}"
+
+- name: Show detected OS disk
+  ansible.builtin.debug:
+    msg: "Detected OS disk: /dev/{{ nfs_os_disk_name }}"
+
+# ---------------------------------------------------------
+# Find data disk
+# ---------------------------------------------------------
+
+- name: Find candidate NFS data disks
+  ansible.builtin.set_fact:
+    nfs_candidate_disks: >-
+      {{
+        nfs_block_devices
+        | selectattr('type', 'equalto', 'disk')
+        | rejectattr('name', 'equalto', nfs_os_disk_name)
+        | rejectattr('name', 'match', '^sr')
+        | list
+      }}
+
+- name: Show candidate NFS data disks
+  ansible.builtin.debug:
+    msg: "Candidate NFS data disks: {{ nfs_candidate_disks }}"
+
+- name: Fail when no data disk is found
+  ansible.builtin.fail:
+    msg: |
+      No suitable NFS data disk was detected.
+
+      OS disk:
+        /dev/{{ nfs_os_disk_name }}
+
+      Detected devices:
+      {{ nfs_block_devices | to_nice_json }}
+  when: nfs_candidate_disks | length == 0
+
+- name: Fail when multiple data disks are found
+  ansible.builtin.fail:
+    msg: |
+      Multiple possible NFS data disks were detected.
+
+      Candidates:
+      {{ nfs_candidate_disks | to_nice_json }}
+
+      Refusing to automatically select a disk.
+      Please configure the desired disk explicitly.
+  when: nfs_candidate_disks | length > 1
+
+- name: Select NFS data disk
+  ansible.builtin.set_fact:
+    nfs_data_disk: "{{ nfs_candidate_disks | first }}"
+
+- name: Set NFS data device
+  ansible.builtin.set_fact:
+    nfs_data_device: "/dev/{{ nfs_data_disk.name }}"
+
+- name: Show selected NFS data disk
+  ansible.builtin.debug:
+    msg:
+      - "NFS data device: {{ nfs_data_device }}"
+      - "Size: {{ nfs_data_disk.size | default('unknown') }} bytes"
+      - "Filesystem: {{ nfs_data_disk.fstype | default('none') }}"
+      - "Mountpoints: {{ nfs_data_disk.mountpoints | default([]) }}"
+
+# ---------------------------------------------------------
+# Filesystem
+# ---------------------------------------------------------
+
+- name: Create filesystem on unformatted data disk
+  community.general.filesystem:
+    dev: "{{ nfs_data_device }}"
+    fstype: "{{ nfs_data_fstype }}"
+  when:
+    - nfs_data_disk.fstype is not defined or nfs_data_disk.fstype is none
+
+# ---------------------------------------------------------
+# Mount
+# ---------------------------------------------------------
+
+- name: Create NFS data mount directory
+  ansible.builtin.file:
+    path: "{{ nfs_data_mount }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Mount NFS data disk
+  ansible.posix.mount:
+    path: "{{ nfs_data_mount }}"
+    src: "{{ nfs_data_device }}"
+    fstype: "{{ nfs_data_fstype }}"
+    opts: defaults
+    state: mounted
+
+# ---------------------------------------------------------
+# NFS export
+# ---------------------------------------------------------
+
+- name: Create NFS export directory
+  ansible.builtin.file:
+    path: "{{ nfs_export_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0777"
+
+- name: Configure NFS export
+  ansible.builtin.lineinfile:
+    path: /etc/exports
+    regexp: "^{{ nfs_export_path | regex_escape() }} "
+    line: "{{ nfs_export_path }} {{ nfs_export_network }}(rw,sync,no_subtree_check,no_root_squash)"
+    create: true
+    mode: "0644"
+  notify: Reload NFS exports
+
+# ---------------------------------------------------------
+# Service
+# ---------------------------------------------------------
+
+- name: Check whether NFS server service exists
+  ansible.builtin.command:
+    cmd: systemctl cat nfs-server.service
+  register: nfs_service_unit
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Ensure NFS server is enabled and running
+  ansible.builtin.service:
+    name: nfs-server
+    state: started
+    enabled: true
+  when: nfs_service_unit.rc == 0

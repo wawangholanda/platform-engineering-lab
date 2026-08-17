@@ -1,3 +1,29 @@
+module "k8s_nfs01" {
+  source = "../../../modules/proxmox-vm"
+
+  vmid           = 107
+  name           = "k8s-nfs01"
+  target_node    = "laptop"
+  clone_template = "ubuntu-2404-template"
+
+  # OS disk
+  storage   = "local-lvm"
+  disk_size = 20
+
+  # NFS data disk
+  data_storage   = "nvme-gabungan"
+  data_disk_size = 64
+
+  cores  = 2
+  memory = 2048
+
+  bridge         = "vmbr0"
+  ip_address     = "192.168.1.27/24"
+  gateway        = "192.168.1.1"
+  nameserver     = "192.168.1.1"
+  ssh_public_key = var.ssh_public_key
+}
+
 module "k8s_cp01" {
   source = "../../../modules/proxmox-vm"
 

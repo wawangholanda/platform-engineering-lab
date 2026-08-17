@@ -33,6 +33,17 @@ resource "proxmox_vm_qemu" "this" {
           size    = var.disk_size
         }
       }
+
+      dynamic "scsi1" {
+        for_each = var.data_storage != null && var.data_disk_size > 0 ? [1] : []
+
+        content {
+          disk {
+            storage = var.data_storage
+            size    = var.data_disk_size
+          }
+        }
+      }
     }
 
     ide {

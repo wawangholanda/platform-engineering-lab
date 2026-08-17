@@ -1,6 +1,0 @@
----
-- name: Test Kubernetes common configuration
-  hosts: k8s
-  become: true
-  roles:
-    - k8s_common

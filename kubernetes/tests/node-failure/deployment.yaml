@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-failure-test
+  namespace: default
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: node-failure-test
+  template:
+    metadata:
+      labels:
+        app: node-failure-test
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27
+          ports:
+            - containerPort: 80

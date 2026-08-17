@@ -29,6 +29,18 @@ variable "disk_size" {
   default     = 40
 }
 
+variable "data_storage" {
+  description = "Optional Proxmox storage for secondary data disk"
+  type        = string
+  default     = null
+}
+
+variable "data_disk_size" {
+  description = "Optional secondary data disk size in GB"
+  type        = number
+  default     = 0
+}
+
 variable "cores" {
   description = "Number of CPU cores"
   type        = number

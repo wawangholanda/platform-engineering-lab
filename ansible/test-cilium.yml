@@ -1,5 +1,0 @@
----
-- name: Test Cilium
-  hosts: control_plane
-  roles:
-    - cilium

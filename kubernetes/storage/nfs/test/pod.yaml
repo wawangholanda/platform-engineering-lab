@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-test-pod
+spec:
+  containers:
+    - name: nginx
+      image: nginx:1.27
+      volumeMounts:
+        - name: nfs-storage
+          mountPath: /data
+
+  volumes:
+    - name: nfs-storage
+      persistentVolumeClaim:
+        claimName: nfs-test-pvc

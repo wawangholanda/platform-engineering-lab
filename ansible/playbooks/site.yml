@@ -74,3 +74,14 @@
   become: true
   roles:
     - k8s_worker
+
+# =========================================================
+# NFS
+# =========================================================
+
+
+- name: Configure NFS server
+  hosts: nfs
+  become: true
+  roles:
+    - nfs_server
