@@ -21,4 +21,17 @@ kube_prometheus_stack_chart_version: "88.5.0"
 
 gitops_repo_url: "https://github.com/wawangholanda/platform-engineering-lab.git"
 gitops_target_revision: "main"
-gitops_nginx_path: "environments/dev/kubernetes/apps/nginx"
+
+gitops_applications:
+  - name: dev-nginx
+    type: git
+    path: "environments/dev/kubernetes/apps/nginx"
+    namespace: demo
+
+  - name: dev-monitoring
+    type: helm
+    chart: kube-prometheus-stack
+    chart_version: "88.5.0"
+    helm_repo_url: "https://prometheus-community.github.io/helm-charts"
+    values_path: "environments/dev/kubernetes/monitoring/kube-prometheus-stack/values.yaml"
+    namespace: monitoring

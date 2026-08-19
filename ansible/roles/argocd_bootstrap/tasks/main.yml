@@ -3,7 +3,7 @@
 # Argo CD GitOps Bootstrap
 # =========================================================
 
-- name: Create Argo CD Application
+- name: Create Git-based Argo CD Applications
   kubernetes.core.k8s:
     state: present
     kubeconfig: /home/ubuntu/.kube/config
@@ -11,20 +11,65 @@
       apiVersion: argoproj.io/v1alpha1
       kind: Application
       metadata:
-        name: dev-nginx
+        name: "{{ item.name }}"
         namespace: argocd
       spec:
         project: default
+
         source:
           repoURL: "{{ gitops_repo_url }}"
           targetRevision: "{{ gitops_target_revision }}"
-          path: "{{ gitops_nginx_path }}"
+          path: "{{ item.path }}"
+
         destination:
           server: https://kubernetes.default.svc
-          namespace: demo
+          namespace: "{{ item.namespace }}"
+
         syncPolicy:
           automated:
             prune: true
             selfHeal: true
           syncOptions:
             - CreateNamespace=true
+  loop: "{{ gitops_applications }}"
+  when: item.type == "git"
+
+
+- name: Create Helm-based Argo CD Applications
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: "{{ item.name }}"
+        namespace: argocd
+      spec:
+        project: default
+
+        sources:
+          - repoURL: "{{ item.helm_repo_url }}"
+            chart: "{{ item.chart }}"
+            targetRevision: "{{ item.chart_version }}"
+            helm:
+              valueFiles:
+                - "$values/{{ item.values_path }}"
+
+          - repoURL: "{{ gitops_repo_url }}"
+            targetRevision: "{{ gitops_target_revision }}"
+            ref: values
+
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: "{{ item.namespace }}"
+
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+  loop: "{{ gitops_applications }}"
+  when: item.type == "helm"

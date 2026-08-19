@@ -6,3 +6,9 @@ prometheus:
 
 alertmanager:
   enabled: true
+
+crds:
+  enabled: true
+  upgradeJob:
+    enabled: true
+    forceConflicts: true
