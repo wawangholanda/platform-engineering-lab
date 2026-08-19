@@ -94,6 +94,15 @@
   hosts: control_plane[0]
   become: false
   roles:
-    - role: argocd
-      tags:
-        - argocd
+    - argocd
+
+
+# =========================================================
+# Bootstrap GitOps
+# =========================================================
+
+- name: Bootstrap GitOps
+  hosts: control_plane[0]
+  become: false
+  roles:
+    - argocd_bootstrap

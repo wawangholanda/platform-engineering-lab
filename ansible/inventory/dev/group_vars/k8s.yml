@@ -12,3 +12,11 @@ cilium_version: "1.20.0"
 helm_version: "v3.21.4"
 
 argocd_chart_version: "10.4.0"
+
+# =========================================================
+# GitOps
+# =========================================================
+
+gitops_repo_url: "https://github.com/wawangholanda/platform-engineering-lab.git"
+gitops_target_revision: "main"
+gitops_nginx_path: "environments/dev/kubernetes/apps/nginx"

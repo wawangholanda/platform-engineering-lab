@@ -19,3 +19,22 @@
     chart_version: "{{ argocd_chart_version }}"
     state: present
     kubeconfig: /home/ubuntu/.kube/config
+
+
+- name: Wait for Argo CD server
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Pod
+    namespace: argocd
+    label_selectors:
+      - app.kubernetes.io/name=argocd-server
+    kubeconfig: /home/ubuntu/.kube/config
+  register: argocd_server_pods
+  until:
+    - argocd_server_pods.resources | length > 0
+    - argocd_server_pods.resources
+        | selectattr('status.phase', 'equalto', 'Running')
+        | list
+        | length > 0
+  retries: 30
+  delay: 10

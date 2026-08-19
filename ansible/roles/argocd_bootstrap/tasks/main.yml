@@ -1,0 +1,30 @@
+---
+# =========================================================
+# Argo CD GitOps Bootstrap
+# =========================================================
+
+- name: Create Argo CD Application
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: dev-nginx
+        namespace: argocd
+      spec:
+        project: default
+        source:
+          repoURL: "{{ gitops_repo_url }}"
+          targetRevision: "{{ gitops_target_revision }}"
+          path: "{{ gitops_nginx_path }}"
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: demo
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
