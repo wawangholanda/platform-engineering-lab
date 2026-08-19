@@ -1,0 +1,21 @@
+---
+# =========================================================
+# Argo CD
+# =========================================================
+
+- name: Add Argo CD Helm repository
+  kubernetes.core.helm_repository:
+    name: argo
+    repo_url: https://argoproj.github.io/argo-helm
+  become: false
+
+
+- name: Install Argo CD
+  kubernetes.core.helm:
+    name: argo-cd
+    chart_ref: argo/argo-cd
+    release_namespace: argocd
+    create_namespace: true
+    chart_version: "{{ argocd_chart_version }}"
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config

@@ -85,3 +85,15 @@
   become: true
   roles:
     - nfs_server
+
+# =========================================================
+# Install Argo CD
+# =========================================================
+
+- name: Install Argo CD
+  hosts: control_plane[0]
+  become: false
+  roles:
+    - role: argocd
+      tags:
+        - argocd
