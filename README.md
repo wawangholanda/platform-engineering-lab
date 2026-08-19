@@ -206,11 +206,11 @@ across Proxmox and public cloud environments.
 - [x] Persistent storage read/write testing
 - [x] Worker node failure testing
 - [x] Control-plane failure testing
+- [x] Argo CD / GitOps
+- [x] Application deployment through GitOps
 
 ### Next
 
-- [ ] Argo CD / GitOps
-- [ ] Application deployment through GitOps
 - [ ] Monitoring with Prometheus and Grafana
 - [ ] Logging
 - [ ] Kubernetes security automation
