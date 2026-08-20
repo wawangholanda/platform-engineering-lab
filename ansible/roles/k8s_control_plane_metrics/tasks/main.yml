@@ -1,0 +1,22 @@
+---
+# =========================================================
+# Configure control-plane metrics
+# =========================================================
+
+- name: Bind kube-controller-manager metrics
+  ansible.builtin.replace:
+    path: /etc/kubernetes/manifests/kube-controller-manager.yaml
+    regexp: '^(\s*-\s*--bind-address=).*$'
+    replace: '\g<1>0.0.0.0'
+
+- name: Bind kube-scheduler metrics
+  ansible.builtin.replace:
+    path: /etc/kubernetes/manifests/kube-scheduler.yaml
+    regexp: '^(\s*-\s*--bind-address=).*$'
+    replace: '\g<1>0.0.0.0'
+
+- name: Bind etcd metrics
+  ansible.builtin.replace:
+    path: /etc/kubernetes/manifests/etcd.yaml
+    regexp: '^(\s*-\s*--listen-metrics-urls=http://)[^[:space:]]+$'
+    replace: '\g<1>0.0.0.0:2381'
