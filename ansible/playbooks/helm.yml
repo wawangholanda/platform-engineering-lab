@@ -1,0 +1,6 @@
+---
+- name: Install Helm
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - helm

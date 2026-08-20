@@ -1,6 +1,6 @@
 ---
 # =========================================================
-# Kubernetes Load Balancer
+# Kubernetes Load Balancers
 # =========================================================
 
 - name: Configure Kubernetes Load Balancers
@@ -25,7 +25,7 @@
 # Bootstrap first control plane
 # =========================================================
 
-- name: Bootstrap Kubernetes control plane
+- name: Bootstrap first control plane
   hosts: control_plane[0]
   become: true
   roles:
@@ -38,6 +38,7 @@
 
 - name: Join additional control planes
   hosts: control_plane
+  serial: 1
   become: true
   roles:
     - k8s_control_plane_join
@@ -83,20 +84,33 @@
 
 - name: Join Kubernetes workers
   hosts: workers
+  serial: 1
   become: true
   roles:
     - k8s_worker
 
-# =========================================================
-# NFS
-# =========================================================
 
+# =========================================================
+# NFS Server
+# =========================================================
 
 - name: Configure NFS server
   hosts: nfs
   become: true
   roles:
     - nfs_server
+
+
+# =========================================================
+# NFS CSI
+# =========================================================
+
+- name: Configure NFS CSI
+  hosts: control_plane[0]
+  become: false
+  roles:
+    - nfs_csi
+
 
 # =========================================================
 # Install Argo CD
