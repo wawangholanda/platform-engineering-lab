@@ -1,7 +1,0 @@
----
-- name: Configure Kubernetes Load Balancers
-  hosts: load_balancer
-  become: true
-
-  roles:
-    - load_balancer
