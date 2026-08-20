@@ -73,3 +73,47 @@
             - ServerSideApply=true
   loop: "{{ gitops_applications }}"
   when: item.type == "helm"
+
+
+# =========================================================
+# Wait for Git-based Argo CD Applications
+# =========================================================
+
+- name: Wait for Git-based Argo CD Applications to become Synced and Healthy
+  kubernetes.core.k8s_info:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    namespace: argocd
+    name: "{{ item.name }}"
+    kubeconfig: /home/ubuntu/.kube/config
+  register: git_application_status
+  until:
+    - git_application_status.resources | length > 0
+    - git_application_status.resources[0].status.sync.status | default('') == 'Synced'
+    - git_application_status.resources[0].status.health.status | default('') == 'Healthy'
+  retries: 60
+  delay: 10
+  loop: "{{ gitops_applications }}"
+  when: item.type == "git"
+
+
+# =========================================================
+# Wait for Helm-based Argo CD Applications
+# =========================================================
+
+- name: Wait for Helm-based Argo CD Applications to become Synced and Healthy
+  kubernetes.core.k8s_info:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    namespace: argocd
+    name: "{{ item.name }}"
+    kubeconfig: /home/ubuntu/.kube/config
+  register: helm_application_status
+  until:
+    - helm_application_status.resources | length > 0
+    - helm_application_status.resources[0].status.sync.status | default('') == 'Synced'
+    - helm_application_status.resources[0].status.health.status | default('') == 'Healthy'
+  retries: 60
+  delay: 10
+  loop: "{{ gitops_applications }}"
+  when: item.type == "helm"
