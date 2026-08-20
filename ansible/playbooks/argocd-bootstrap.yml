@@ -1,6 +1,0 @@
----
-- name: Bootstrap Argo CD GitOps
-  hosts: control_plane[0]
-  become: false
-  roles:
-    - argocd_bootstrap

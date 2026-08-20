@@ -1,7 +1,0 @@
----
-- name: Configure Kubernetes NFS CSI storage
-  hosts: control_plane[0]
-  become: true
-
-  roles:
-    - nfs_csi

@@ -1,7 +1,0 @@
----
-- name: Configure Kubernetes control-plane metrics
-  hosts: control_plane
-  serial: 1
-  become: true
-  roles:
-    - k8s_control_plane_metrics

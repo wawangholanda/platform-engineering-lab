@@ -64,6 +64,7 @@ GitOps / Monitoring
 | k8s-worker02 | Worker | 192.168.1.22 |
 | k8s-lb01 | Load Balancer | 192.168.1.25 |
 | k8s-lb02 | Load Balancer | 192.168.1.26 |
+| k8s-nfs01 | NFS Server | 192.168.1.27 |
 
 The Kubernetes API is exposed through:
 
@@ -145,12 +146,6 @@ Helm is installed using:
 ansible/roles/helm/
 ```
 
-A dedicated playbook is available:
-
-```text
-ansible/playbooks/helm.yml
-```
-
 ### Persistent Storage
 
 Persistent storage is provided through NFS:
@@ -187,9 +182,9 @@ ansible/roles/argocd_bootstrap/
 The monitoring stack uses `kube-prometheus-stack` and is managed through
 GitOps.
 
-## Main Playbook
+## Ansible Bootstrap
 
-The main bootstrap playbook is:
+The single Ansible entry point is:
 
 ```text
 ansible/playbooks/site.yml
@@ -206,20 +201,66 @@ The high-level execution order is:
 6. Helm
 7. Cilium
 8. Workers
-9. NFS / Storage
+9. NFS Server
 10. NFS CSI
 11. Argo CD
-12. GitOps Applications
+12. GitOps Bootstrap
 ```
 
-Targeted playbooks are preferred for isolated operational changes.
+Run the complete bootstrap:
 
-Examples:
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml
+```
+
+Specific roles can be executed using tags:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags cilium
+```
+
+Multiple roles can be selected when required:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags "helm,argocd,argocd_bootstrap"
+```
+
+Available role tags include:
 
 ```text
-ansible/playbooks/helm.yml
-ansible/playbooks/control-plane-metrics.yml
+load_balancer
+k8s_common
+k8s_control_plane
+k8s_control_plane_join
+k8s_control_plane_metrics
+helm
+cilium
+k8s_worker
+nfs_server
+nfs_csi
+argocd
+argocd_bootstrap
 ```
+
+List available tags:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --list-tags
+```
+
+Tags are intended for targeted operational changes, while running
+`site.yml` without `--tags` executes the complete automation workflow.
 
 ## Validation
 
@@ -315,6 +356,8 @@ Healthy
 
 ### Monitoring
 
+Prometheus readiness:
+
 ```bash
 curl -s http://localhost:9091/-/ready
 ```
@@ -350,11 +393,12 @@ Use check mode where practical:
 ```bash
 ansible-playbook \
   -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/<playbook>.yml \
+  ansible/playbooks/site.yml \
   --check
 ```
 
-Targeted playbooks should be preferred for isolated changes.
+For isolated changes, use the appropriate role tag instead of
+re-running the complete bootstrap workflow.
 
 ## Control Plane Safety
 
@@ -375,6 +419,12 @@ Therefore:
 - Never store backup manifests inside the static Pod directory.
 - Check etcd before troubleshooting kube-apiserver.
 - Verify etcd membership and quorum before destructive recovery.
+
+Control-plane operations in Ansible use:
+
+```yaml
+serial: 1
+```
 
 ## Recovery Principles
 
@@ -428,8 +478,9 @@ The bootstrap implementation follows these principles:
 
 - Infrastructure provisioning is separated from platform configuration.
 - Reusable logic is encapsulated in Ansible roles.
+- `site.yml` is the single Ansible entry point.
+- Tags provide targeted role execution.
 - Control-plane changes are executed serially.
-- Targeted playbooks are used for isolated changes.
 - Cluster state is validated after platform changes.
 - Git remains the source of truth for persistent GitOps configuration.
 - Recovery procedures prioritize preserving etcd quorum and cluster state.

@@ -7,7 +7,9 @@
   hosts: load_balancer
   become: true
   roles:
-    - load_balancer
+    - role: load_balancer
+      tags:
+        - load_balancer
 
 
 # =========================================================
@@ -18,7 +20,9 @@
   hosts: k8s
   become: true
   roles:
-    - k8s_common
+    - role: k8s_common
+      tags:
+        - k8s_common
 
 
 # =========================================================
@@ -29,7 +33,9 @@
   hosts: control_plane[0]
   become: true
   roles:
-    - k8s_control_plane
+    - role: k8s_control_plane
+      tags:
+        - k8s_control_plane
 
 
 # =========================================================
@@ -41,7 +47,9 @@
   serial: 1
   become: true
   roles:
-    - k8s_control_plane_join
+    - role: k8s_control_plane_join
+      tags:
+        - k8s_control_plane_join
 
 
 # =========================================================
@@ -53,7 +61,9 @@
   serial: 1
   become: true
   roles:
-    - k8s_control_plane_metrics
+    - role: k8s_control_plane_metrics
+      tags:
+        - k8s_control_plane_metrics
 
 
 # =========================================================
@@ -64,7 +74,9 @@
   hosts: control_plane[0]
   become: true
   roles:
-    - helm
+    - role: helm
+      tags:
+        - helm
 
 
 # =========================================================
@@ -75,7 +87,9 @@
   hosts: control_plane[0]
   become: false
   roles:
-    - cilium
+    - role: cilium
+      tags:
+        - cilium
 
 
 # =========================================================
@@ -87,7 +101,9 @@
   serial: 1
   become: true
   roles:
-    - k8s_worker
+    - role: k8s_worker
+      tags:
+        - k8s_worker
 
 
 # =========================================================
@@ -98,7 +114,9 @@
   hosts: nfs
   become: true
   roles:
-    - nfs_server
+    - role: nfs_server
+      tags:
+        - nfs_server
 
 
 # =========================================================
@@ -109,7 +127,9 @@
   hosts: control_plane[0]
   become: false
   roles:
-    - nfs_csi
+    - role: nfs_csi
+      tags:
+        - nfs_csi
 
 
 # =========================================================
@@ -120,7 +140,9 @@
   hosts: control_plane[0]
   become: false
   roles:
-    - argocd
+    - role: argocd
+      tags:
+        - argocd
 
 
 # =========================================================
@@ -131,4 +153,6 @@
   hosts: control_plane[0]
   become: false
   roles:
-    - argocd_bootstrap
+    - role: argocd_bootstrap
+      tags:
+        - argocd_bootstrap

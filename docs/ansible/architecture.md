@@ -75,34 +75,35 @@ ansible/
 │   └── nfs_server/
 │
 ├── playbooks/
-│   ├── site.yml
-│   ├── helm.yml
-│   ├── control-plane-metrics.yml
-│   ├── argocd-bootstrap.yml
-│   ├── nfs.yml
-│   └── nfs-csi.yml
+│   └── site.yml
 │
 ├── requirements.yml
 └── ansible.cfg
 ```
 
+`site.yml` is the single Ansible entry point. Role-specific execution
+is controlled using Ansible tags.
+
 ## Inventory
 
-The development inventory groups hosts by their function:
+The development inventory groups hosts by function:
 
 ```text
 all
-└── k8s
-    ├── control_plane
-    │   ├── k8s-cp01
-    │   ├── k8s-cp02
-    │   └── k8s-cp03
-    └── workers
-        ├── k8s-worker01
-        └── k8s-worker02
+├── k8s
+│   ├── control_plane
+│   │   ├── k8s-cp01
+│   │   ├── k8s-cp02
+│   │   └── k8s-cp03
+│   └── workers
+│       ├── k8s-worker01
+│       └── k8s-worker02
+├── load_balancer
+│   ├── k8s-lb01
+│   └── k8s-lb02
+└── nfs
+    └── k8s-nfs01
 ```
-
-Load balancers are maintained as a separate group.
 
 | Host | Role | IP |
 |---|---|---|
@@ -113,6 +114,7 @@ Load balancers are maintained as a separate group.
 | k8s-cp03 | Control Plane | 192.168.1.24 |
 | k8s-lb01 | Load Balancer | 192.168.1.25 |
 | k8s-lb02 | Load Balancer | 192.168.1.26 |
+| k8s-nfs01 | NFS Server | 192.168.1.27 |
 
 ## Group Variables
 
@@ -144,8 +146,6 @@ automation logic.
 
 ## Roles
 
-The main roles are:
-
 | Role | Responsibility |
 |---|---|
 | `k8s_common` | Common node and Kubernetes prerequisites |
@@ -163,13 +163,13 @@ The main roles are:
 
 ## Main Playbook
 
-The main playbook is:
+The single entry point is:
 
 ```text
 ansible/playbooks/site.yml
 ```
 
-High-level execution order:
+The execution order is:
 
 ```text
 Load Balancers
@@ -205,14 +205,72 @@ Argo CD
 GitOps Bootstrap
 ```
 
-Targeted playbooks are used for isolated operational changes.
-
-Examples:
+Each role is exposed through a matching tag:
 
 ```text
-ansible/playbooks/helm.yml
-ansible/playbooks/control-plane-metrics.yml
+load_balancer
+k8s_common
+k8s_control_plane
+k8s_control_plane_join
+k8s_control_plane_metrics
+helm
+cilium
+k8s_worker
+nfs_server
+nfs_csi
+argocd
+argocd_bootstrap
 ```
+
+## Ansible Execution
+
+Run the complete automation:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml
+```
+
+Run a specific role:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags cilium
+```
+
+Run multiple roles:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags "helm,argocd,argocd_bootstrap"
+```
+
+List available tags:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --list-tags
+```
+
+List tasks for a specific role:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags cilium \
+  --list-tasks
+```
+
+The full deployment is executed without `--tags`. Tags are intended for
+targeted operational changes.
 
 ## Idempotency
 
@@ -224,12 +282,12 @@ Check mode:
 ```bash
 ansible-playbook \
   -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/<playbook>.yml \
+  ansible/playbooks/site.yml \
   --check
 ```
 
-After the desired state is already present, a repeated run should
-produce no unexpected changes.
+After the desired state is present, repeated execution should produce
+no unexpected changes.
 
 ```text
 changed=0
@@ -254,7 +312,7 @@ Because kubelet watches this directory directly:
 - etcd should be checked before troubleshooting kube-apiserver.
 - etcd quorum should be understood before destructive recovery.
 
-Control-plane configuration changes use:
+Control-plane changes use:
 
 ```yaml
 serial: 1
@@ -276,7 +334,7 @@ ansible-playbook \
 ```bash
 ansible-playbook \
   -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/<playbook>.yml \
+  ansible/playbooks/site.yml \
   --check
 ```
 
@@ -310,8 +368,6 @@ Expected:
 
 ## Operational Workflow
 
-The recommended workflow is:
-
 ```text
 Change
   |
@@ -325,7 +381,7 @@ Ansible Syntax Check
 Check Mode
   |
   v
-Targeted Playbook
+Full or Targeted Execution
   |
   v
 Kubernetes Validation
@@ -337,15 +393,15 @@ Monitoring Validation
 Git Commit
 ```
 
-Targeted playbooks should be preferred for isolated changes instead of
-re-running the full bootstrap process unnecessarily.
+Use tagged execution for isolated changes and full execution when the
+complete automation workflow is required.
 
 ## Design Principles
 
-The Ansible implementation follows these principles:
-
 - Reusable logic belongs in roles.
 - Environment-specific values belong in inventory and group variables.
+- `site.yml` is the single Ansible entry point.
+- Tags provide targeted role execution.
 - Cluster-affecting changes are validated before application.
 - Control-plane changes are performed serially.
 - Idempotency is a primary design goal.

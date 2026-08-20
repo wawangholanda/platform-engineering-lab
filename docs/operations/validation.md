@@ -44,6 +44,8 @@ Expected:
 
 ## 2. Ansible
 
+Ansible uses `site.yml` as the single entry point.
+
 Run syntax validation:
 
 ```bash
@@ -53,13 +55,39 @@ ansible-playbook \
   --syntax-check
 ```
 
+Run the complete automation:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml
+```
+
 Use check mode where applicable:
 
 ```bash
 ansible-playbook \
   -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/<playbook>.yml \
+  ansible/playbooks/site.yml \
   --check
+```
+
+For isolated changes, use the corresponding role tag:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags k8s_control_plane_metrics
+```
+
+List available tags:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --list-tags
 ```
 
 Expected:
@@ -93,6 +121,8 @@ Check system workloads:
 ```bash
 kubectl get pods -A
 ```
+
+Core Kubernetes and networking components should be healthy.
 
 ## 4. Kubernetes API
 
@@ -157,7 +187,7 @@ Check Argo CD applications:
 kubectl get applications -n argocd
 ```
 
-Validate an application:
+Validate the monitoring application:
 
 ```bash
 kubectl get application dev-monitoring -n argocd \

@@ -32,7 +32,7 @@ Monitoring covers:
 - node-exporter
 - kube-state-metrics
 
-## Control Plane Metrics Validation
+## Control Plane Metrics
 
 Control-plane metrics are collected from:
 
@@ -47,10 +47,20 @@ Configuration is automated using:
 ansible/roles/k8s_control_plane_metrics/
 ```
 
-The dedicated playbook is:
+Ansible uses a single entry point:
 
 ```text
-ansible/playbooks/control-plane-metrics.yml
+ansible/playbooks/site.yml
+```
+
+The control-plane metrics role can be executed independently using its
+tag:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags k8s_control_plane_metrics
 ```
 
 Control-plane changes are executed serially to reduce the risk of
@@ -138,7 +148,7 @@ Expected:
 
 A result of `0` means no active scrape target is unhealthy.
 
-### Control Plane Metrics
+### Control Plane Metrics Validation
 
 ```bash
 curl -sG http://localhost:9091/api/v1/query \
@@ -300,7 +310,34 @@ Cluster-affecting automation should be validated using:
 - Ansible syntax checks
 - Ansible check mode
 - Idempotency testing
-- Targeted playbooks
+- Targeted role tags
+
+Syntax check:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --syntax-check
+```
+
+Check mode:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --check
+```
+
+Targeted control-plane metrics configuration:
+
+```bash
+ansible-playbook \
+  -i ansible/inventory/dev/hosts.yml \
+  ansible/playbooks/site.yml \
+  --tags k8s_control_plane_metrics
+```
 
 ### GitOps as Source of Truth
 

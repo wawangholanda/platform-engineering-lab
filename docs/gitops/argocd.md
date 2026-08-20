@@ -131,7 +131,7 @@ ansible/roles/argocd_bootstrap/
 Bootstrap playbook:
 
 ```text
-ansible/playbooks/argocd-bootstrap.yml
+ansible/playbooks/argocd-bootstrap.yml --tags argocd_bootstrap
 ```
 
 ## Validation
