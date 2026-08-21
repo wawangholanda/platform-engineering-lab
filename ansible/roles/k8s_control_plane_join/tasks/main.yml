@@ -20,12 +20,9 @@
   run_once: true
   register: certificate_upload
   changed_when: false
-  when: >
-    groups['control_plane']
-    | map('extract', hostvars, 'control_plane_joined')
-    | selectattr('stat.exists', 'equalto', false)
-    | list
-    | length > 0
+  when:
+    - inventory_hostname != groups['control_plane'][0]
+    - not control_plane_joined.stat.exists
 
 
 # =========================================================
@@ -58,11 +55,8 @@
   register: kubeadm_join_command
   changed_when: false
   when:
-    - groups['control_plane']
-      | map('extract', hostvars, 'control_plane_joined')
-      | selectattr('stat.exists', 'equalto', false)
-      | list
-      | length > 0
+    - inventory_hostname != groups['control_plane'][0]
+    - not control_plane_joined.stat.exists
 
 
 # =========================================================

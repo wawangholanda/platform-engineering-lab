@@ -125,7 +125,7 @@
 
 - name: Configure NFS CSI
   hosts: control_plane[0]
-  become: false
+  become: true
   roles:
     - role: nfs_csi
       tags:

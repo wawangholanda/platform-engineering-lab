@@ -54,6 +54,14 @@
 # StorageClass
 # =========================================================
 
+- name: Check whether NFS StorageClass exists
+  kubernetes.core.k8s_info:
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: nfs
+    kubeconfig: /etc/kubernetes/admin.conf
+  register: nfs_storageclass
+
 - name: Create NFS StorageClass
   kubernetes.core.k8s:
     state: present
@@ -67,8 +75,8 @@
       parameters:
         server: 192.168.1.27
         share: /srv/nfs/kubernetes
-        reclaimPolicy: Delete
-        archiveOnDelete: "true"
+      reclaimPolicy: Delete
       mountOptions:
         - nfsvers=4.1
       volumeBindingMode: Immediate
+  when: nfs_storageclass.resources | length == 0
