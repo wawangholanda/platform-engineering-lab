@@ -5,55 +5,101 @@
 The Platform Engineering Lab runs a highly available Kubernetes cluster
 on Proxmox.
 
-High availability is provided at two layers:
+High availability is provided at multiple layers:
 
-- Kubernetes control plane with three nodes
-- Kubernetes API load balancing with two HAProxy / Keepalived nodes
+* Kubernetes API load balancing with two HAProxy / Keepalived nodes
+* Kubernetes control plane with three nodes
+* Three-node stacked etcd cluster
+* Redundant worker capacity
+* Cilium-based service and application networking
+
+Application access is separated from Kubernetes API access.
+
+The Kubernetes API uses the HA control-plane endpoint:
+
+```text
+192.168.1.30:6443
+```
+
+Application traffic is exposed through Cilium Gateway API and Nginx Proxy
+Manager.
 
 ## Architecture
 
 ```text
-                         Kubernetes API
-                              |
+                         Kubernetes API Clients
+                                |
+                                v
                        VIP 192.168.1.30:6443
-                              |
-                 +------------+------------+
-                 |                         |
-              LB01                       LB02
-          192.168.1.25               192.168.1.26
-        HAProxy + Keepalived       HAProxy + Keepalived
-                 |                         |
-                 +------------+------------+
-                              |
-                +-------------+-------------+
-                |             |             |
-               CP01          CP02          CP03
-          192.168.1.20   192.168.1.23   192.168.1.24
-                |             |             |
-                +-------------+-------------+
-                              |
-                        Kubernetes Cluster
-                         /             \
-                        /               \
-                   Worker01           Worker02
-                 192.168.1.21       192.168.1.22
+                                |
+                   +------------+------------+
+                   |                         |
+                LB01                       LB02
+            192.168.1.25               192.168.1.26
+          HAProxy + Keepalived       HAProxy + Keepalived
+                   |                         |
+                   +------------+------------+
+                                |
+                 +--------------+--------------+
+                 |              |              |
+                CP01           CP02           CP03
+           192.168.1.20   192.168.1.23   192.168.1.24
+                 |              |              |
+                 +--------------+--------------+
+                                |
+                         Kubernetes Cluster
+                                |
+                    +-----------+-----------+
+                    |                       |
+                 Worker01                Worker02
+               192.168.1.21            192.168.1.22
+
+
+Application Traffic
+
+Internet / Tailscale
+        |
+        v
+Nginx Proxy Manager
+192.168.1.3
+        |
+        | HTTP
+        v
+Cilium Gateway
+192.168.1.240
+        |
+        +-------------+-------------+
+        |             |             |
+        v             v             v
+      nginx        Argo CD        Grafana
 ```
+
+The Kubernetes API path and application traffic path are intentionally
+separate.
+
+The API endpoint is protected by the HAProxy / Keepalived layer, while
+application traffic is handled by Nginx Proxy Manager and Cilium Gateway
+API.
 
 ## Components
 
-| Component | Role |
-|---|---|
-| LB01 | HAProxy + Keepalived |
-| LB02 | HAProxy + Keepalived |
-| CP01 | Control Plane + etcd |
-| CP02 | Control Plane + etcd |
-| CP03 | Control Plane + etcd |
-| Worker01 | Application workloads |
-| Worker02 | Application workloads |
-| Cilium | Cluster networking |
-| NFS CSI | Persistent storage |
-| Argo CD | GitOps |
-| Prometheus | Monitoring |
+| Component           | Role                                       |
+| ------------------- | ------------------------------------------ |
+| LB01                | HAProxy + Keepalived                       |
+| LB02                | HAProxy + Keepalived                       |
+| CP01                | Control Plane + etcd                       |
+| CP02                | Control Plane + etcd                       |
+| CP03                | Control Plane + etcd                       |
+| Worker01            | Application workloads                      |
+| Worker02            | Application workloads                      |
+| Cilium              | CNI and cluster networking                 |
+| Cilium Gateway API  | Application ingress and HTTP routing       |
+| NFS CSI             | Persistent storage                         |
+| Argo CD             | GitOps                                     |
+| Prometheus          | Metrics and monitoring                     |
+| Grafana             | Monitoring dashboards                      |
+| Alertmanager        | Alert management                           |
+| Nginx Proxy Manager | External reverse proxy and TLS termination |
 
 ## API High Availability
 
@@ -63,7 +109,15 @@ The Kubernetes API is accessed through:
 192.168.1.30:6443
 ```
 
-HAProxy distributes API traffic across:
+The virtual IP is provided by Keepalived across:
+
+```text
+LB01: 192.168.1.25
+LB02: 192.168.1.26
+```
+
+HAProxy distributes Kubernetes API traffic across the three control-plane
+nodes:
 
 ```text
 192.168.1.20:6443
@@ -71,23 +125,26 @@ HAProxy distributes API traffic across:
 192.168.1.24:6443
 ```
 
-Keepalived provides failover for the virtual IP between LB01 and LB02.
+This creates a stable Kubernetes API endpoint independent of an individual
+load balancer or control-plane node.
 
 ## Control Plane High Availability
 
 The cluster uses three control-plane nodes.
 
-Each control-plane node runs:
+Each control-plane node provides the Kubernetes control-plane components
+and participates in the etcd cluster.
 
-- kube-apiserver
-- kube-controller-manager
-- kube-scheduler
-- etcd
-- kubelet
-- kube-proxy
+The control-plane nodes are:
 
-Three control-plane nodes allow the cluster to maintain etcd quorum
-during a single control-plane failure.
+```text
+CP01  192.168.1.20
+CP02  192.168.1.23
+CP03  192.168.1.24
+```
+
+The three-node control plane provides redundancy for the Kubernetes API,
+controller, scheduler, and cluster state.
 
 ## etcd
 
@@ -99,46 +156,125 @@ CP02 ── etcd
 CP03 ── etcd
 ```
 
-etcd stores Kubernetes cluster state and requires quorum for normal
-cluster operation.
+etcd stores Kubernetes cluster state and operates as a three-member
+distributed cluster.
 
-For this reason, control-plane recovery must preserve etcd membership
-and quorum whenever possible.
+A three-member etcd cluster can tolerate the loss of a single member while
+maintaining quorum.
+
+Control-plane recovery therefore needs to preserve etcd membership and
+quorum.
+
+## Worker Nodes
+
+Application workloads are distributed across two worker nodes:
+
+```text
+Worker01  192.168.1.21
+Worker02  192.168.1.22
+```
+
+Worker nodes provide workload capacity independently from the Kubernetes
+control plane.
+
+A worker-node failure reduces available workload capacity but does not
+directly remove the Kubernetes control plane.
 
 ## Networking
 
-Cilium provides the cluster networking layer.
+Cilium provides the Kubernetes networking layer.
+
+The cluster uses:
 
 ```text
-Pod
- |
- v
-Cilium
- |
- v
-Cluster Network
- |
- +---- Pod-to-Pod
- +---- Service Connectivity
- +---- DNS
- +---- NetworkPolicy
+Pod Network:       10.0.0.0/16
+Service Network:   10.96.0.0/12
+Cluster DNS:       10.96.0.10
 ```
 
-The current Pod network is:
+Cilium provides:
+
+* Pod networking
+* Service connectivity
+* Cluster-pool IPAM
+* kube-proxy replacement
+* Gateway API integration
+* LoadBalancer IP management
+* L2 announcements
+
+The detailed networking architecture is documented separately in:
 
 ```text
-10.0.0.0/16
+docs/kubernetes/networking-cilium.md
 ```
 
-The Kubernetes Service network is:
+## Application Ingress
+
+Application ingress is provided by Cilium Gateway API.
+
+The primary Gateway is:
 
 ```text
-10.96.0.0/12
+nginx-gateway
 ```
+
+The Gateway receives the LoadBalancer address:
+
+```text
+192.168.1.240
+```
+
+Application routing is implemented using HTTPRoute resources.
+
+Current application routes include:
+
+```text
+nginx-route
+argocd-route
+grafana-route
+```
+
+The Gateway API configuration is managed through GitOps.
+
+## External Application Access
+
+External application access uses Nginx Proxy Manager together with the
+Cilium Gateway.
+
+The architecture is:
+
+```text
+Client
+  |
+  | HTTPS
+  v
+Nginx Proxy Manager
+192.168.1.3
+  |
+  | HTTP
+  v
+Cilium Gateway
+192.168.1.240
+  |
+  +-------------+-------------+
+  |             |             |
+  v             v             v
+nginx         Argo CD       Grafana
+```
+
+Nginx Proxy Manager provides the public TLS termination layer.
+
+The internal connection between Nginx Proxy Manager and the Cilium Gateway
+uses HTTP.
+
+This separates public TLS handling from Kubernetes application routing.
 
 ## Storage
 
-Persistent storage is provided through NFS:
+Persistent storage is provided through NFS and the Kubernetes NFS CSI
+driver.
+
+The storage architecture is:
 
 ```text
 Application
@@ -156,111 +292,93 @@ NFS CSI
 NFS Server
 ```
 
+Persistent storage is independent of the Kubernetes control-plane
+architecture and is consumed by workloads through Kubernetes storage
+resources.
+
 ## GitOps and Observability
 
-Argo CD manages Kubernetes resources from Git.
+Argo CD manages Kubernetes resources from the Git repository.
 
-Prometheus, Grafana, and Alertmanager provide platform observability.
+The GitOps flow is:
 
 ```text
-Git
- |
- v
-Argo CD
- |
- v
-Kubernetes
- |
- +---- Applications
- +---- Storage
- +---- Monitoring
+Git Repository
+      |
+      v
+   Argo CD
+      |
+      v
+ Kubernetes Cluster
+      |
+      +---- Applications
+      +---- Gateway API
+      +---- Storage
+      +---- Monitoring
 ```
+
+The observability stack consists of:
+
+```text
+Prometheus
+Grafana
+Alertmanager
+```
+
+Prometheus provides metrics collection, Grafana provides visualization,
+and Alertmanager provides alert management.
 
 ## Failure Domains
 
-The architecture separates failure domains:
+The architecture separates the primary failure domains:
 
 ```text
-API Access
-    |
-    +-- LB01
-    +-- LB02
-          |
-          +-- CP01
-          +-- CP02
-          +-- CP03
+Kubernetes API
+      |
+      +-- LB01
+      +-- LB02
+            |
+            +-- CP01
+            +-- CP02
+            +-- CP03
+                  |
+                  +-- Worker01
+                  +-- Worker02
 ```
 
-A single load balancer failure should not remove the API endpoint.
+The load-balancer layer protects access to the Kubernetes API.
+
+The control-plane layer provides redundancy for Kubernetes control-plane
+services and etcd.
+
+The worker layer provides workload capacity independently from the control
+plane.
+
+A single load-balancer failure should not remove the Kubernetes API
+endpoint.
 
 A single control-plane failure should not remove the Kubernetes control
 plane as long as etcd quorum and the remaining control-plane nodes remain
 healthy.
 
-Worker failure affects workload capacity but should not remove the
-control plane.
-
-## Validation
-
-Check the cluster:
-
-```bash
-kubectl get nodes -o wide
-```
-
-Check the API endpoint:
-
-```bash
-curl -k --max-time 5 \
-  https://192.168.1.30:6443/readyz
-```
-
-Check control-plane nodes:
-
-```bash
-kubectl get nodes \
-  -l node-role.kubernetes.io/control-plane
-```
-
-Validate etcd metrics through Prometheus:
-
-```bash
-curl -sG http://localhost:9091/api/v1/query \
-  --data-urlencode \
-  'query=up{job="kube-etcd"}' |
-  jq '.data.result[] | {
-    instance: .metric.instance,
-    value: .value[1]
-  }'
-```
-
-All three etcd targets should report:
-
-```text
-1
-```
-
-## Failure Testing
-
-The HA design should be validated by testing:
-
-- LB01 failure
-- LB02 failure
-- Worker failure
-- Single control-plane failure
-- Control-plane recovery
-- API availability during failure
-
-Failure testing should be performed one failure domain at a time.
+A worker failure affects workload capacity but does not directly remove
+the Kubernetes control plane.
 
 ## Design Principles
 
-- No single load balancer should be required for API availability.
-- Multiple control-plane nodes provide redundancy.
-- etcd quorum must be preserved during recovery.
-- Infrastructure and platform configuration are automated.
-- Failure scenarios should be validated rather than assumed.
-- Monitoring should verify the health of HA components.
+The Kubernetes HA architecture follows these principles:
+
+* No single load balancer is required for API availability.
+* Multiple control-plane nodes provide control-plane redundancy.
+* Three etcd members provide quorum tolerance for a single member failure.
+* Worker capacity is separated from the control plane.
+* Kubernetes API access is separated from application ingress.
+* Cilium provides the cluster networking datapath.
+* Application ingress is handled through Gateway API.
+* Public TLS termination is handled by Nginx Proxy Manager.
+* Infrastructure and platform configuration are managed declaratively.
+* GitOps provides version-controlled application and networking resources.
+* Monitoring provides visibility into platform health.
 
 ## Related Documentation
 
@@ -270,6 +388,8 @@ docs/
 │   └── architecture.md
 ├── terraform/
 │   └── architecture.md
+├── architecture/
+│   └── kubernetes-ha.md
 ├── kubernetes/
 │   ├── cluster-bootstrap.md
 │   ├── networking-cilium.md

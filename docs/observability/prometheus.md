@@ -1,284 +1,461 @@
-# Prometheus
+# Prometheus and Kubernetes Observability
 
 ## Overview
 
-Prometheus is deployed through `kube-prometheus-stack` and managed by
-Argo CD.
+The Platform Engineering Lab uses `kube-prometheus-stack` to provide
+Kubernetes monitoring and observability.
 
-Configuration:
+The monitoring stack is deployed through Helm, managed by Argo CD, and
+configured through Git.
+
+The stack runs in the:
+
+```text
+monitoring
+```
+
+namespace.
+
+The primary configuration is stored at:
 
 ```text
 environments/dev/kubernetes/monitoring/kube-prometheus-stack/values.yaml
 ```
 
-The stack runs in the `monitoring` namespace.
+The monitoring architecture provides metrics collection, visualization,
+alert management, Kubernetes object metrics, and node-level metrics.
+
+## Architecture
+
+```text
+Git Repository
+      |
+      v
+   Argo CD
+      |
+      v
+kube-prometheus-stack
+      |
+      +-------------------+
+      |                   |
+      v                   v
+ Prometheus            Grafana
+      |                   |
+      |                   |
+      v                   v
+Kubernetes Metrics   Cilium Gateway
+                          |
+                          v
+                   Nginx Proxy Manager
+                          |
+                          v
+                     HTTPS Client
+```
+
+Prometheus provides the metrics collection and query layer, while Grafana
+provides visualization.
+
+Alertmanager provides alert management for Prometheus-generated alerts.
 
 ## Components
 
-- Prometheus — metrics collection and querying
-- Grafana — visualization and dashboards
-- Alertmanager — alert management
-- kube-state-metrics — Kubernetes object metrics
-- node-exporter — node metrics
+The monitoring stack includes:
 
-Monitoring covers:
+| Component             | Role                                   |
+| --------------------- | -------------------------------------- |
+| Prometheus            | Metrics collection and querying        |
+| Grafana               | Visualization and dashboards           |
+| Alertmanager          | Alert management                       |
+| kube-state-metrics    | Kubernetes object and resource metrics |
+| node-exporter         | Node-level operating system metrics    |
+| kube-prometheus-stack | Helm-based monitoring stack            |
 
-- Kubernetes API server
-- etcd
-- kube-controller-manager
-- kube-scheduler
-- kubelet
-- CoreDNS
-- node-exporter
-- kube-state-metrics
+The monitoring system covers major Kubernetes platform components,
+including:
+
+* Kubernetes API server
+* etcd
+* kube-controller-manager
+* kube-scheduler
+* kubelet
+* CoreDNS
+* node-exporter
+* kube-state-metrics
+
+## Prometheus
+
+Prometheus is deployed as part of the `kube-prometheus-stack`.
+
+The Prometheus instance collects metrics from Kubernetes components and
+monitoring exporters through Kubernetes monitoring resources.
+
+The monitoring architecture provides visibility into both Kubernetes
+control-plane health and workload/node infrastructure.
+
+The current Prometheus configuration includes:
+
+```text
+Replica count: 1
+Retention:     10d
+Scrape interval: 30s
+```
+
+Prometheus therefore acts as the central metrics backend for the current
+development environment.
 
 ## Control Plane Metrics
 
-Control-plane metrics are collected from:
+Control-plane metrics are collected from the Kubernetes control-plane
+components:
 
-- kube-apiserver
-- kube-controller-manager
-- kube-scheduler
-- etcd
+* kube-apiserver
+* kube-controller-manager
+* kube-scheduler
+* etcd
 
-Configuration is automated using:
+The control-plane metrics configuration is automated through:
 
 ```text
 ansible/roles/k8s_control_plane_metrics/
 ```
 
-Ansible uses a single entry point:
+The automation is integrated into the main Ansible platform configuration.
 
-```text
-ansible/playbooks/site.yml
-```
-
-The control-plane metrics role can be executed independently using its
-tag:
-
-```bash
-ansible-playbook \
-  -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/site.yml \
-  --tags k8s_control_plane_metrics
-```
-
-Control-plane changes are executed serially to reduce the risk of
-simultaneously disrupting multiple control-plane nodes.
+Control-plane changes are designed to be applied serially:
 
 ```yaml
 serial: 1
 ```
 
-## kube-proxy Validation
+This design reduces the risk of simultaneously disrupting multiple
+control-plane nodes.
 
-kube-proxy scraping is intentionally disabled because its metrics
-endpoint is bound to localhost:
+## etcd Metrics
+
+The three control-plane nodes expose etcd metrics for Prometheus:
 
 ```text
-127.0.0.1:10249
+CP01  192.168.1.20:2381
+CP02  192.168.1.23:2381
+CP03  192.168.1.24:2381
 ```
 
-The monitoring configuration therefore uses:
+The three-member etcd cluster is therefore represented in Prometheus as
+three monitoring targets.
+
+The monitoring architecture provides visibility into the health of each
+etcd member.
+
+## Control Plane Metrics Endpoints
+
+The Kubernetes control-plane components expose their metrics through their
+standard secure metrics endpoints.
+
+The current control-plane monitoring architecture includes:
+
+```text
+kube-apiserver
+      |
+      +-- metrics
+      |
+kube-controller-manager
+      |
+      +-- metrics
+      |
+kube-scheduler
+      |
+      +-- metrics
+      |
+etcd
+      |
+      +-- metrics
+```
+
+The control-plane manifest configuration is managed by Ansible rather than
+being maintained as an independent manual configuration.
+
+## Cilium and Kube-Proxy Replacement
+
+The cluster uses Cilium kube-proxy replacement:
+
+```yaml
+kubeProxyReplacement: true
+```
+
+Because Cilium provides the service datapath, the traditional `kube-proxy`
+component is not used as the cluster networking datapath.
+
+The kube-prometheus-stack configuration therefore disables kube-proxy
+monitoring:
 
 ```yaml
 kubeProxy:
   enabled: false
 ```
 
-This is managed through GitOps in:
+This configuration is stored in:
 
 ```text
 environments/dev/kubernetes/monitoring/kube-prometheus-stack/values.yaml
 ```
 
-## GitOps
+The monitoring configuration therefore reflects the actual networking
+architecture rather than expecting metrics from a traditional kube-proxy
+deployment.
 
-The monitoring stack is managed by the Argo CD application:
+## GitOps Management
+
+The monitoring stack is managed through the Argo CD application:
 
 ```text
 dev-monitoring
 ```
 
-Changes to monitoring configuration should be committed to Git and
-reconciled by Argo CD.
-
-Validate:
-
-```bash
-kubectl get application dev-monitoring -n argocd \
-  -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{"\n"}'
-```
-
-Expected:
+The configuration flow is:
 
 ```text
-Synced Healthy
+Git
+ |
+ +-- values.yaml
+ |
+ v
+Argo CD
+ |
+ v
+Helm
+ |
+ v
+kube-prometheus-stack
+ |
+ +-- Prometheus
+ +-- Grafana
+ +-- Alertmanager
+ +-- kube-state-metrics
+ +-- node-exporter
 ```
 
-## Validation
+Git remains the source of truth for persistent monitoring configuration.
 
-Prometheus is validated through readiness checks, target health, and
-PromQL queries.
+Argo CD reconciles the desired monitoring state with the Kubernetes
+cluster.
 
-### Prometheus Readiness
+## Grafana
 
-```bash
-curl -s http://localhost:9091/-/ready
-```
+Grafana is deployed as part of the monitoring stack.
 
-Expected:
+The current external URL is:
 
 ```text
-Prometheus Server is Ready.
+https://grafana.wawangholanda.biz.id
 ```
 
-### Target Health
+Grafana is configured with the external URL:
 
-```bash
-curl -s http://localhost:9091/api/v1/targets |
-  jq '[.data.activeTargets[] | select(.health != "up")] | length'
+```yaml
+grafana:
+  grafana.ini:
+    server:
+      root_url: https://grafana.wawangholanda.biz.id
+      serve_from_sub_path: false
 ```
 
-Expected:
+This allows Grafana to generate links and redirects using the public HTTPS
+hostname while its internal connection remains HTTP.
+
+## Grafana External Access
+
+Grafana is exposed through the same application ingress architecture used
+by the platform.
+
+The traffic path is:
 
 ```text
-0
+Client
+  |
+  | HTTPS
+  v
+Nginx Proxy Manager
+192.168.1.3
+  |
+  | HTTP
+  v
+Cilium Gateway
+192.168.1.240
+  |
+  v
+grafana-route
+  |
+  v
+monitoring/dev-monitoring-grafana
 ```
 
-A result of `0` means no active scrape target is unhealthy.
+TLS termination occurs at Nginx Proxy Manager.
 
-### Control Plane Metrics Validation
+Cilium Gateway API is responsible for HTTP routing inside the Kubernetes
+environment.
 
-```bash
-curl -sG http://localhost:9091/api/v1/query \
-  --data-urlencode \
-  'query=up{job=~"kube-etcd|kube-controller-manager|kube-scheduler"}' |
-  jq '.data.result[] | {
-    job: .metric.job,
-    instance: .metric.instance,
-    value: .value[1]
-  }'
-```
-
-Expected:
+The Grafana `HTTPRoute` is managed through the GitOps application:
 
 ```text
-kube-etcd                 192.168.1.20:2381   1
-kube-etcd                 192.168.1.23:2381   1
-kube-etcd                 192.168.1.24:2381   1
-
-kube-controller-manager   192.168.1.20:10257  1
-kube-controller-manager   192.168.1.23:10257  1
-kube-controller-manager   192.168.1.24:10257  1
-
-kube-scheduler            192.168.1.20:10259  1
-kube-scheduler            192.168.1.23:10259  1
-kube-scheduler            192.168.1.24:10259  1
+dev-gateway
 ```
 
-A value of `1` indicates a healthy Prometheus scrape.
+## Cross-Namespace Gateway Routing
 
-### kube-proxy
+The Grafana Service is located in the `monitoring` namespace, while the
+Gateway and HTTPRoute are located in the `default` namespace.
 
-Verify that no kube-proxy target is active:
+Gateway API cross-namespace backend access is explicitly authorized using
+a `ReferenceGrant`.
 
-```bash
-curl -s http://localhost:9091/api/v1/targets |
-  jq '.data.activeTargets[] |
-      select(.labels.job == "kube-proxy")'
-```
-
-Expected:
+The Grafana ReferenceGrant is stored at:
 
 ```text
-No output
+environments/dev/kubernetes/gateway/grafana-reference-grant.yaml
 ```
 
-### Kubernetes Nodes
-
-```bash
-kubectl get nodes -o wide
-```
-
-Expected:
+The resulting architecture is:
 
 ```text
-k8s-cp01       Ready
-k8s-cp02       Ready
-k8s-cp03       Ready
-k8s-worker01   Ready
-k8s-worker02   Ready
+default/grafana-route
+        |
+        | ReferenceGrant
+        v
+monitoring/dev-monitoring-grafana
 ```
 
-### Monitoring Workloads
+This creates an explicit namespace boundary for the Gateway backend
+reference.
 
-```bash
-kubectl get pods -n monitoring -o wide
-```
+## Monitoring Data Flow
 
-Prometheus, Grafana, Alertmanager, and supporting monitoring components
-should be healthy.
-
-## Validation Summary
-
-| Validation | Expected Result |
-|---|---|
-| Prometheus readiness | Ready |
-| Unhealthy active targets | 0 |
-| etcd metrics | 3/3 UP |
-| kube-controller-manager metrics | 3/3 UP |
-| kube-scheduler metrics | 3/3 UP |
-| kube-proxy active targets | None |
-| Kubernetes nodes | 5/5 Ready |
-| Argo CD application | Synced Healthy |
-
-## Operational Notes
-
-For local validation, Prometheus is accessed through port forwarding:
-
-```bash
-kubectl -n monitoring port-forward \
-  svc/dev-monitoring-kube-promet-prometheus 9091:9090
-```
-
-Prometheus is then available at:
+The overall monitoring data flow is:
 
 ```text
-http://localhost:9091
+Kubernetes Components
+        |
+        +-- kubelet
+        +-- API server
+        +-- etcd
+        +-- controller-manager
+        +-- scheduler
+        +-- CoreDNS
+        +-- node-exporter
+        +-- kube-state-metrics
+        |
+        v
+    Prometheus
+        |
+        +----------------+
+        |                |
+        v                v
+    PromQL           Alert Rules
+        |                |
+        v                v
+    Grafana         Alertmanager
 ```
 
-Port forwarding is intended for local administration and validation,
-not as the permanent production access method.
+Prometheus acts as the central source of metrics for both dashboards and
+alert evaluation.
+
+## Monitoring and GitOps Relationship
+
+The monitoring platform is part of the broader GitOps architecture:
+
+```text
+Terraform
+    |
+    v
+Proxmox Infrastructure
+    |
+    v
+Ansible
+    |
+    +-- Kubernetes
+    +-- Cilium
+    +-- Argo CD
+            |
+            v
+        Git Repository
+            |
+            +-- Applications
+            +-- Monitoring
+            +-- Gateway API
+```
+
+This separation provides clear ownership between infrastructure,
+platform installation, and Kubernetes resource management.
+
+## Control Plane Observability
+
+The monitoring stack provides visibility across all three control-plane
+nodes:
+
+```text
+CP01  192.168.1.20
+CP02  192.168.1.23
+CP03  192.168.1.24
+```
+
+The monitoring architecture includes metrics for:
+
+```text
+CP01 ── kube-apiserver
+     ├─ kube-controller-manager
+     ├─ kube-scheduler
+     └─ etcd
+
+CP02 ── kube-apiserver
+     ├─ kube-controller-manager
+     ├─ kube-scheduler
+     └─ etcd
+
+CP03 ── kube-apiserver
+     ├─ kube-controller-manager
+     ├─ kube-scheduler
+     └─ etcd
+```
+
+This is particularly important for the HA control-plane architecture,
+because the monitoring layer can distinguish individual control-plane
+members rather than observing only the shared API endpoint.
 
 ## Lessons Learned
 
-### Static Pod Safety
+### Static Pod Configuration
 
-Control-plane components run as static Pods. Changes to their manifests
-must be made carefully because invalid configuration can immediately
-restart critical components.
+Several Kubernetes control-plane components run as static Pods.
 
-Do not store backup manifests inside:
+Their configuration is therefore closely coupled to the files under:
 
 ```text
 /etc/kubernetes/manifests/
 ```
 
-Store backups outside the kubelet static Pod directory.
+Control-plane metrics configuration must be handled carefully because
+changes to these manifests can affect critical Kubernetes components.
 
-### Serial Changes
+Backup files should not be stored inside the kubelet static Pod manifest
+directory because they may be interpreted as additional static Pod
+manifests.
 
-Control-plane configuration changes should be applied one node at a
-time.
+### Serial Control Plane Changes
+
+Changes affecting multiple control-plane nodes are treated as a
+potentially disruptive operation.
+
+The Ansible configuration therefore uses:
 
 ```yaml
 serial: 1
 ```
 
-### Validate etcd First
+This preserves availability on the remaining control-plane nodes while
+one node is being modified.
 
-When kube-apiserver is unavailable, validate etcd first:
+### etcd as a Critical Dependency
+
+The monitoring architecture reinforces the dependency chain:
 
 ```text
 etcd
@@ -290,73 +467,92 @@ kube-apiserver
 Kubernetes API
   |
   v
-kubectl / Helm / platform services
+Kubernetes platform services
 ```
 
-An etcd failure can therefore appear as an API server or Helm
-connectivity problem.
+Problems in etcd can therefore surface as higher-level API or platform
+availability problems.
+
+This makes etcd monitoring particularly important in a highly available
+control-plane architecture.
 
 ### Avoid Destructive Recovery
 
-Do not immediately remove etcd members, run `kubeadm reset`, or delete
-the etcd data directory.
+The HA control plane depends on maintaining etcd membership and quorum.
 
-Verify cluster membership and quorum before destructive recovery.
+Recovery therefore favors preserving the existing cluster state and
+understanding the failure before performing destructive operations.
 
-### Validate Automation
-
-Cluster-affecting automation should be validated using:
-
-- Ansible syntax checks
-- Ansible check mode
-- Idempotency testing
-- Targeted role tags
-
-Syntax check:
-
-```bash
-ansible-playbook \
-  -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/site.yml \
-  --syntax-check
-```
-
-Check mode:
-
-```bash
-ansible-playbook \
-  -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/site.yml \
-  --check
-```
-
-Targeted control-plane metrics configuration:
-
-```bash
-ansible-playbook \
-  -i ansible/inventory/dev/hosts.yml \
-  ansible/playbooks/site.yml \
-  --tags k8s_control_plane_metrics
-```
+The monitoring layer provides supporting information for this recovery
+process by exposing the health of individual etcd members and other
+control-plane components.
 
 ### GitOps as Source of Truth
 
-Persistent monitoring configuration should be stored in Git and
-reconciled by Argo CD.
+Persistent monitoring configuration is stored in Git and reconciled by
+Argo CD.
 
-Emergency manual changes should be reflected back into automation and
-Git afterward.
+This includes:
+
+* Prometheus configuration
+* Grafana configuration
+* Alertmanager configuration
+* kube-prometheus-stack values
+* Grafana external URL configuration
+
+Monitoring configuration therefore remains version controlled and
+reproducible.
+
+## Current Observability Capabilities
+
+The current platform provides:
+
+* Prometheus metrics collection
+* Grafana dashboards
+* Alertmanager
+* kube-state-metrics
+* node-exporter
+* Kubernetes control-plane metrics
+* etcd metrics
+* kubelet metrics
+* CoreDNS metrics
+* GitOps-managed monitoring configuration
+* Grafana external access
+* Grafana routing through Cilium Gateway API
+* TLS termination through Nginx Proxy Manager
+
+## Future Improvements
+
+Planned observability improvements include:
+
+* Infrastructure failure alerts
+* Notification integration
+* Production-oriented dashboards
+* Kubernetes workload dashboards
+* Persistent logging
+* Centralized log aggregation
+* Additional Cilium observability
+* Alerting for control-plane and worker-node failures
+* Backup and disaster-recovery monitoring
 
 ## Related Documentation
 
 ```text
 docs/
 ├── architecture/
+│   └── kubernetes-ha.md
 ├── ansible/
+│   └── architecture.md
 ├── kubernetes/
+│   ├── cluster-bootstrap.md
+│   ├── networking-cilium.md
+│   └── storage-nfs.md
 ├── gitops/
+│   └── argocd.md
 ├── observability/
-├── proxmox/
-├── terraform/
+│   └── prometheus.md
 └── operations/
+    ├── validation.md
+    ├── control-plane-failure.md
+    └── startup-shutdown.md
 ```

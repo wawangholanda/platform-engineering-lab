@@ -296,6 +296,7 @@ principles across Proxmox and public cloud environments.
 - [x] HAProxy
 - [x] Keepalived
 - [x] Cilium
+- [x] Cilium kube-proxy replacement
 - [x] Helm
 - [x] Kubernetes worker nodes
 - [x] NFS server and client automation
@@ -309,6 +310,23 @@ principles across Proxmox and public cloud environments.
 - [x] Argo CD / GitOps
 - [x] Application deployment through GitOps
 
+### Networking and Ingress
+
+- [x] Cilium Gateway API
+- [x] Cilium GatewayClass
+- [x] Cilium LoadBalancer IPAM
+- [x] Cilium L2 announcements
+- [x] HTTPRoute-based application routing
+- [x] Cross-namespace Gateway routing with ReferenceGrant
+- [x] Nginx application routing through Cilium Gateway API
+- [x] Argo CD exposed through Cilium Gateway API
+- [x] Grafana exposed through Cilium Gateway API
+- [x] Nginx Proxy Manager integration
+- [x] TLS termination at reverse proxy
+- [x] External Argo CD access validation
+- [x] External Grafana access validation
+- [x] Git-managed Gateway configuration
+
 ### Observability Roadmap
 
 - [x] Prometheus
@@ -319,6 +337,8 @@ principles across Proxmox and public cloud environments.
 - [x] Kubelet metrics
 - [x] Kubernetes state metrics
 - [x] Monitoring configuration managed through GitOps
+- [x] Grafana external access
+- [x] Grafana routing through Cilium Gateway API
 - [ ] Infrastructure failure alert rules
 - [ ] Alert notification integration
 - [ ] Production-oriented Grafana dashboards
@@ -360,6 +380,7 @@ principles across Proxmox and public cloud environments.
 
 - [x] Argo CD GitOps
 - [x] Git-managed application deployment
+- [x] Git-managed Gateway configuration
 - [ ] GitHub Actions
 - [ ] Terraform CI/CD
 - [ ] Ansible CI/CD
