@@ -9,6 +9,21 @@
     repo_url: https://helm.cilium.io/
   become: false
 
+- name: Download standard Gateway API CRDs
+  ansible.builtin.get_url:
+    url: https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
+    dest: /tmp/gateway-api-standard-v1.6.1.yaml
+    mode: "0644"
+    checksum: sha256:24d931f22abd8e40c973264319ead7cfa09d0fb7716b7ab1ee2ff174cb063a73
+
+- name: Install standard Gateway API CRDs
+  kubernetes.core.k8s:
+    state: present
+    apply: true
+    server_side_apply:
+      field_manager: ansible
+    src: /tmp/gateway-api-standard-v1.6.1.yaml
+    kubeconfig: /home/ubuntu/.kube/config
 
 - name: Install Cilium
   kubernetes.core.helm:
@@ -25,3 +40,5 @@
         operator:
           clusterPoolIPv4PodCIDRList:
             - "{{ pod_cidr }}"
+      gatewayAPI:
+        enabled: true
