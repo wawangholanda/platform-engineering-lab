@@ -3,7 +3,7 @@ kubeProxy:
 
 grafana:
   enabled: true
-
+  defaultDashboardsTimezone: browser
 prometheus:
   enabled: true
 
