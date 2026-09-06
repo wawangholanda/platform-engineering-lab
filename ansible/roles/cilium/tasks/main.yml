@@ -23,7 +23,7 @@
     server_side_apply:
       field_manager: ansible
     src: /tmp/gateway-api-standard-v1.6.1.yaml
-    kubeconfig: /home/ubuntu/.kube/config
+    kubeconfig: "{{ kubeconfig_path }}"
 
 - name: Install Cilium
   kubernetes.core.helm:
@@ -33,7 +33,7 @@
     create_namespace: false
     chart_version: "{{ cilium_version }}"
     state: present
-    kubeconfig: /home/ubuntu/.kube/config
+    kubeconfig: "{{ kubeconfig_path }}"
     values:
       ipam:
         mode: cluster-pool
@@ -42,3 +42,27 @@
             - "{{ pod_cidr }}"
       gatewayAPI:
         enabled: true
+      kubeProxyReplacement: true
+      l2announcements:
+        enabled: true
+      rollOutCiliumPods: true
+  register: cilium_helm
+
+- name: Restart Cilium Operator after Cilium configuration change
+  ansible.builtin.command:
+    cmd: kubectl -n kube-system rollout restart deployment/cilium-operator
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  when:
+    - cilium_helm.changed
+    - not ansible_check_mode
+
+- name: Wait for Cilium Operator rollout
+  ansible.builtin.command:
+    cmd: kubectl -n kube-system rollout status deployment/cilium-operator --timeout=180s
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  changed_when: false
+  when:
+    - cilium_helm.changed
+    - not ansible_check_mode
