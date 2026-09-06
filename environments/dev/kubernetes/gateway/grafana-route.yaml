@@ -1,0 +1,16 @@
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: grafana-route
+  namespace: default
+spec:
+  parentRefs:
+    - name: nginx-gateway
+  hostnames:
+    - grafana.wawangholanda.biz.id
+  rules:
+    - backendRefs:
+        - name: dev-monitoring-grafana
+          namespace: monitoring
+          port: 80

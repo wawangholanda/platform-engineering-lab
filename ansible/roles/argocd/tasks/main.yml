@@ -19,8 +19,11 @@
     chart_version: "{{ argocd_chart_version }}"
     release_values:
       fullnameOverride: argocd
+      configs:
+        params:
+          server.insecure: "true"
     state: present
-    kubeconfig: /home/ubuntu/.kube/config
+    kubeconfig: "{{ ansible_facts['user_dir'] }}/.kube/config"
 
 
 - name: Wait for Argo CD server
@@ -30,7 +33,7 @@
     namespace: argocd
     label_selectors:
       - app.kubernetes.io/name=argocd-server
-    kubeconfig: /home/ubuntu/.kube/config
+    kubeconfig: "{{ ansible_facts['user_dir'] }}/.kube/config"
   register: argocd_server_pods
   until:
     - argocd_server_pods.resources | length > 0

@@ -1,9 +1,15 @@
+---
 kubeProxy:
   enabled: false
 
 grafana:
   enabled: true
   defaultDashboardsTimezone: browser
+  grafana.ini:
+    server:
+      root_url: https://grafana.wawangholanda.biz.id
+      serve_from_sub_path: false
+
 prometheus:
   enabled: true
 
