@@ -17,6 +17,8 @@
     release_namespace: argocd
     create_namespace: true
     chart_version: "{{ argocd_chart_version }}"
+    release_values:
+      fullnameOverride: argocd
     state: present
     kubeconfig: /home/ubuntu/.kube/config
 
