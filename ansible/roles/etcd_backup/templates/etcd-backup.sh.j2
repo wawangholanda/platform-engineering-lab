@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ETCD_ENDPOINT="https://127.0.0.1:2379"
+
+ETCD_CA="/etc/kubernetes/pki/etcd/ca.crt"
+ETCD_CERT="/etc/kubernetes/pki/etcd/peer.crt"
+ETCD_KEY="/etc/kubernetes/pki/etcd/peer.key"
+
+LOCAL_BACKUP_DIR="{{ etcd_backup_local_dir }}"
+
+NFS_BACKUP_DIR="{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
+
+RETENTION_DAYS={{ etcd_backup_retention_days }}
+
+TIMESTAMP="$(date +%Y-%m-%d-%H%M%S)"
+SNAPSHOT="${LOCAL_BACKUP_DIR}/etcd-snapshot-${TIMESTAMP}.db"
+NFS_SNAPSHOT="${NFS_BACKUP_DIR}/$(basename "${SNAPSHOT}")"
+
+echo "Starting etcd backup..."
+echo "Snapshot: ${SNAPSHOT}"
+
+mkdir -p "${LOCAL_BACKUP_DIR}"
+mkdir -p "${NFS_BACKUP_DIR}"
+
+echo "Creating etcd snapshot..."
+
+/usr/local/bin/etcdctl \
+  --endpoints="${ETCD_ENDPOINT}" \
+  --cacert="${ETCD_CA}" \
+  --cert="${ETCD_CERT}" \
+  --key="${ETCD_KEY}" \
+  snapshot save "${SNAPSHOT}"
+
+chmod 0600 "${SNAPSHOT}"
+
+echo "Copying snapshot to NFS..."
+
+cp "${SNAPSHOT}" "${NFS_SNAPSHOT}"
+
+chmod 0600 "${NFS_SNAPSHOT}"
+
+echo "Verifying SHA-256 checksum..."
+
+LOCAL_CHECKSUM="$(sha256sum "${SNAPSHOT}" | awk '{print $1}')"
+NFS_CHECKSUM="$(sha256sum "${NFS_SNAPSHOT}" | awk '{print $1}')"
+
+if [[ "${LOCAL_CHECKSUM}" != "${NFS_CHECKSUM}" ]]; then
+    echo "ERROR: etcd snapshot checksum mismatch!"
+    echo "Local: ${LOCAL_CHECKSUM}"
+    echo "NFS:   ${NFS_CHECKSUM}"
+    exit 1
+fi
+
+echo "Checksum verified: ${LOCAL_CHECKSUM}"
+
+echo "Applying retention policy: ${RETENTION_DAYS} days..."
+
+find "${LOCAL_BACKUP_DIR}" \
+  -type f \
+  -name 'etcd-snapshot-*.db' \
+  -mtime +"${RETENTION_DAYS}" \
+  -delete
+
+find "${NFS_BACKUP_DIR}" \
+  -type f \
+  -name 'etcd-snapshot-*.db' \
+  -mtime +"${RETENTION_DAYS}" \
+  -delete
+
+echo "etcd backup completed successfully."

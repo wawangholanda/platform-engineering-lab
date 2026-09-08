@@ -1,0 +1,162 @@
+---
+# =========================================================
+# etcd backup tools
+# =========================================================
+
+- name: Set etcd download architecture
+  ansible.builtin.set_fact:
+    etcd_download_arch: "amd64"
+  when: ansible_facts["architecture"] == "x86_64"
+
+- name: Fail on unsupported architecture
+  ansible.builtin.fail:
+    msg: "Unsupported architecture: {{ ansible_facts['architecture'] }}"
+  when: etcd_download_arch is not defined
+
+- name: Create temporary etcd download directory
+  ansible.builtin.file:
+    path: "/tmp/etcd-v{{ etcd_version }}"
+    state: directory
+    mode: "0755"
+
+- name: Download etcd release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}.tar.gz"
+    dest: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+    mode: "0644"
+
+- name: Extract etcd release archive
+  ansible.builtin.unarchive:
+    src: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+    dest: "/tmp/etcd-v{{ etcd_version }}"
+    remote_src: true
+    creates: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdctl"
+
+- name: Install etcdctl
+  ansible.builtin.copy:
+    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdctl"
+    dest: "/usr/local/bin/etcdctl"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install etcdutl
+  ansible.builtin.copy:
+    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdutl"
+    dest: "/usr/local/bin/etcdutl"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install etcd
+  ansible.builtin.copy:
+    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcd"
+    dest: "/usr/local/bin/etcd"
+    remote_src: true
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install etcd restore script
+  ansible.builtin.template:
+    src: "etcd-restore.sh.j2"
+    dest: "/usr/local/sbin/etcd-restore.sh"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install etcd restore systemd service
+  ansible.builtin.template:
+    src: "etcd-restore.service.j2"
+    dest: "/etc/systemd/system/etcd-restore.service"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd daemon for restore service
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+# =========================================================
+# Backup script and systemd service
+# =========================================================
+
+- name: Install etcd backup script
+  ansible.builtin.template:
+    src: "etcd-backup.sh.j2"
+    dest: "/usr/local/sbin/etcd-backup.sh"
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Install etcd backup systemd service
+  ansible.builtin.copy:
+    src: "etcd-backup.service"
+    dest: "/etc/systemd/system/etcd-backup.service"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Install etcd backup systemd timer
+  ansible.builtin.copy:
+    src: "etcd-backup.timer"
+    dest: "/etc/systemd/system/etcd-backup.timer"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Reload systemd daemon after timer installation
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable and start etcd backup timer
+  ansible.builtin.systemd:
+    name: etcd-backup.timer
+    enabled: true
+    state: started
+
+# =========================================================
+# NFS backup mount
+# =========================================================
+
+- name: Create etcd backup NFS mount directory
+  ansible.builtin.file:
+    path: "{{ etcd_backup_nfs_mount }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Mount etcd backup NFS export
+  ansible.posix.mount:
+    path: "{{ etcd_backup_nfs_mount }}"
+    src: "{{ etcd_backup_nfs_server }}:{{ etcd_backup_nfs_export }}"
+    fstype: nfs
+    opts: defaults
+    state: mounted
+
+# =========================================================
+# Backup directories
+# =========================================================
+
+- name: Create local etcd backup directory
+  ansible.builtin.file:
+    path: "{{ etcd_backup_local_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create remote etcd backup directory
+  ansible.builtin.file:
+    path: "{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"

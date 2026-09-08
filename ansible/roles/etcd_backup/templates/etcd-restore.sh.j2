@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# =========================================================
+# etcd isolated restore environment
+# =========================================================
+
+SNAPSHOT="${1:-}"
+
+RESTORE_DIR="{{ etcd_restore_dir }}"
+NFS_BACKUP_DIR="{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
+
+PRODUCTION_ETCD_DIR="/var/lib/etcd"
+
+if [[ -z "${SNAPSHOT}" ]]; then
+    echo "Usage: $0 <snapshot-filename>"
+    exit 1
+fi
+
+if [[ "${RESTORE_DIR}" == "${PRODUCTION_ETCD_DIR}" ]]; then
+    echo "ERROR: Restore directory cannot be the production etcd directory."
+    exit 1
+fi
+
+if [[ "${SNAPSHOT}" == */* ]]; then
+    echo "ERROR: Snapshot must be a filename only."
+    exit 1
+fi
+
+SOURCE="${NFS_BACKUP_DIR}/${SNAPSHOT}"
+
+if [[ ! -f "${SOURCE}" ]]; then
+    echo "ERROR: Snapshot not found:"
+    echo "${SOURCE}"
+    exit 1
+fi
+
+echo "Starting isolated etcd restore..."
+echo "Snapshot : ${SOURCE}"
+echo "Data dir : ${RESTORE_DIR}"
+
+ETCD_ENDPOINT="https://127.0.0.1:2379"
+
+ETCD_CA="/etc/kubernetes/pki/etcd/ca.crt"
+ETCD_CERT="/etc/kubernetes/pki/etcd/peer.crt"
+ETCD_KEY="/etc/kubernetes/pki/etcd/peer.key"
+
+if /usr/local/bin/etcdctl \
+    --endpoints="${ETCD_ENDPOINT}" \
+    --cacert="${ETCD_CA}" \
+    --cert="${ETCD_CERT}" \
+    --key="${ETCD_KEY}" \
+    endpoint health >/dev/null 2>&1; then
+    echo "ERROR: Production etcd is healthy at ${ETCD_ENDPOINT}."
+    echo "Refusing to continue."
+    exit 1
+fi
+
+if [[ -d "${RESTORE_DIR}" ]] && [[ -n "$(find "${RESTORE_DIR}" -mindepth 1 -print -quit)" ]]; then
+    echo "ERROR: Restore directory is not empty:"
+    echo "${RESTORE_DIR}"
+    echo "Remove the previous restore environment explicitly before retrying."
+    exit 1
+fi
+
+mkdir -p "${RESTORE_DIR}"
+chmod 0700 "${RESTORE_DIR}"
+
+echo "Restoring snapshot..."
+
+/usr/local/bin/etcdutl snapshot restore \
+    "${SOURCE}" \
+    --data-dir="${RESTORE_DIR}"
+
+chmod 0700 "${RESTORE_DIR}"
+
+echo
+echo "Restore completed successfully."
+echo
+echo "Restored database:"
+echo "${RESTORE_DIR}/member/snap/db"
+
+echo
+echo "Snapshot status:"
+/usr/local/bin/etcdutl snapshot status \
+    "${RESTORE_DIR}/member/snap/db"

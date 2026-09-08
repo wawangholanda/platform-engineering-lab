@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Kubernetes etcd backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+Unit=etcd-backup.service
+
+[Install]
+WantedBy=timers.target

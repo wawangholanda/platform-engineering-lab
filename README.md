@@ -359,10 +359,10 @@ principles across Proxmox and public cloud environments.
 - [x] Worker node failure testing
 - [x] Control-plane failure testing
 - [x] Control-plane recovery validation
-- [ ] etcd backup automation
+- [x] etcd backup automation
 - [ ] Kubernetes backup strategy
 - [ ] Disaster recovery procedure
-- [ ] Restore testing
+- [x] etcd snapshot restore testing
 - [ ] Automated failure scenarios
 
 ### Platform Automation

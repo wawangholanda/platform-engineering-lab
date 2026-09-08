@@ -1,0 +1,24 @@
+[Unit]
+Description=Isolated etcd restore environment
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/etcd \
+  --name=restore \
+  --data-dir={{ etcd_restore_dir }} \
+  --initial-advertise-peer-urls=http://127.0.0.1:{{ etcd_restore_peer_port }} \
+  --listen-peer-urls=http://127.0.0.1:{{ etcd_restore_peer_port }} \
+  --advertise-client-urls=http://127.0.0.1:{{ etcd_restore_client_port }} \
+  --listen-client-urls=http://127.0.0.1:{{ etcd_restore_client_port }} \
+  --initial-cluster=restore=http://127.0.0.1:{{ etcd_restore_peer_port }} \
+  --initial-cluster-token=etcd-restore \
+  --initial-cluster-state=new
+
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

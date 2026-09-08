@@ -156,3 +156,16 @@
     - role: argocd_bootstrap
       tags:
         - argocd_bootstrap
+
+
+# =========================================================
+# Backup Kubernetes etcd
+# =========================================================
+
+- name: Backup Kubernetes etcd
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: etcd_backup
+      tags:
+        - etcd_backup
