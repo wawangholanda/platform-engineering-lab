@@ -286,7 +286,7 @@ principles across Proxmox and public cloud environments.
 
 ## Roadmap
 
-### Completed
+## Completed
 
 - [x] Terraform + Proxmox
 - [x] Reusable Terraform VM module
@@ -309,8 +309,9 @@ principles across Proxmox and public cloud environments.
 - [x] Control-plane recovery validation
 - [x] Argo CD / GitOps
 - [x] Application deployment through GitOps
+- [x] Kubernetes cluster reconstruction validation
 
-### Networking and Ingress
+## Networking and Ingress
 
 - [x] Cilium Gateway API
 - [x] Cilium GatewayClass
@@ -327,7 +328,7 @@ principles across Proxmox and public cloud environments.
 - [x] External Grafana access validation
 - [x] Git-managed Gateway configuration
 
-### Observability Roadmap
+## Observability Roadmap
 
 - [x] Prometheus
 - [x] Grafana
@@ -344,7 +345,7 @@ principles across Proxmox and public cloud environments.
 - [ ] Production-oriented Grafana dashboards
 - [ ] Logging stack
 
-### Security Roadmap
+## Security Roadmap
 
 - [ ] Kubernetes security baseline
 - [ ] Cilium NetworkPolicy
@@ -354,18 +355,19 @@ principles across Proxmox and public cloud environments.
 - [ ] Image vulnerability scanning
 - [ ] Kubernetes security validation
 
-### Reliability and Disaster Recovery
+## Reliability and Disaster Recovery
 
 - [x] Worker node failure testing
 - [x] Control-plane failure testing
 - [x] Control-plane recovery validation
 - [x] etcd backup automation
 - [ ] Kubernetes backup strategy
-- [ ] Disaster recovery procedure
+- [x] Disaster recovery procedure
+- [x] Kubernetes cluster reconstruction validation
 - [x] etcd snapshot restore testing
 - [ ] Automated failure scenarios
 
-### Platform Automation
+## Platform Automation
 
 - [ ] Automated infrastructure validation
 - [ ] Kubernetes manifest validation
@@ -376,7 +378,7 @@ principles across Proxmox and public cloud environments.
 - [ ] Integration testing
 - [ ] Automated failure scenario testing
 
-### CI/CD and GitOps
+## CI/CD and GitOps
 
 - [x] Argo CD GitOps
 - [x] Git-managed application deployment
@@ -388,7 +390,7 @@ principles across Proxmox and public cloud environments.
 - [ ] Atlantis
 - [ ] Automated infrastructure testing
 
-### Planned Platforms
+## Planned Platforms
 
 - [ ] AWS
 - [ ] Google Cloud
