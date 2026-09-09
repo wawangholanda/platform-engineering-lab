@@ -1,0 +1,7 @@
+---
+# Destructive Kubernetes reset
+# This file must only be included after all safety checks pass.
+
+- name: Reset Kubernetes node with kubeadm
+  ansible.builtin.command:
+    cmd: kubeadm reset --force

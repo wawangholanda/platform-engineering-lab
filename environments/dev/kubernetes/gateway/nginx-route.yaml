@@ -1,3 +1,4 @@
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -9,4 +10,5 @@ spec:
   rules:
     - backendRefs:
         - name: nginx
+          namespace: demo
           port: 80

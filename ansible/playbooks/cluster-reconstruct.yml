@@ -1,0 +1,62 @@
+---
+- name: Validate cluster reconstruction safety
+  hosts: control_plane[0]
+  become: true
+  gather_facts: false
+
+  vars:
+    reconstruction_allow_persistent_data: false
+
+  tasks:
+    - name: Check existing PersistentVolume resources
+      ansible.builtin.command:
+        cmd: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pv --no-headers
+      register: existing_pvs
+      changed_when: false
+      failed_when: false
+
+    - name: Check existing PersistentVolumeClaim resources
+      ansible.builtin.command:
+        cmd: kubectl --kubeconfig=/etc/kubernetes/admin.conf get pvc -A --no-headers
+      register: existing_pvcs
+      changed_when: false
+      failed_when: false
+
+    - name: Show persistent storage state
+      ansible.builtin.debug:
+        msg:
+          - "Existing PVs: {{ existing_pvs.stdout_lines | default([]) }}"
+          - "Existing PVCs: {{ existing_pvcs.stdout_lines | default([]) }}"
+
+    - name: Stop reconstruction when persistent storage exists
+      ansible.builtin.assert:
+        that:
+          - reconstruction_allow_persistent_data | bool
+        fail_msg: >-
+          Reconstruction blocked because PV/PVC resources exist.
+          Validate application-data backup/recovery before explicitly
+          setting reconstruction_allow_persistent_data=true.
+      when:
+        - (existing_pvs.stdout | trim | length > 0) or
+          (existing_pvcs.stdout | trim | length > 0)
+
+    - name: Confirm reconstruction safety when no persistent storage exists
+      ansible.builtin.assert:
+        that:
+          - existing_pvs.stdout | trim | length == 0
+          - existing_pvcs.stdout | trim | length == 0
+        success_msg: >-
+          No PV/PVC resources detected. Reconstruction safety gate passed.
+
+
+- name: Run controlled Kubernetes reset
+  hosts: k8s
+  become: true
+  gather_facts: false
+  vars:
+    k8s_reset_confirm: false
+
+  tasks:
+    - name: Load controlled Kubernetes reset role
+      ansible.builtin.include_role:
+        name: k8s_reset

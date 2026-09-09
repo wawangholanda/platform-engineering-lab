@@ -19,9 +19,38 @@
     chart_version: "{{ argocd_chart_version }}"
     release_values:
       fullnameOverride: argocd
+
       configs:
         params:
           server.insecure: "true"
+
+        cm:
+          resource.customizations.health.gateway.networking.k8s.io_Gateway: |
+            hs = {}
+            hs.status = "Progressing"
+            hs.message = "Waiting for Gateway to be accepted and programmed"
+
+            if obj.status ~= nil and obj.status.conditions ~= nil then
+              accepted = false
+              programmed = false
+
+              for _, condition in ipairs(obj.status.conditions) do
+                if condition.type == "Accepted" and condition.status == "True" then
+                  accepted = true
+                end
+
+                if condition.type == "Programmed" and condition.status == "True" then
+                  programmed = true
+                end
+              end
+
+              if accepted and programmed then
+                hs.status = "Healthy"
+                hs.message = "Gateway is accepted and programmed"
+              end
+            end
+
+            return hs
     state: present
     kubeconfig: "{{ ansible_facts['user_dir'] }}/.kube/config"
 

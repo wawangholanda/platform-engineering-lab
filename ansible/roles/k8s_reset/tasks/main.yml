@@ -1,0 +1,63 @@
+---
+# Controlled Kubernetes cluster reconstruction
+# Preflight checks must complete before any destructive action.
+
+- name: Check Kubernetes configuration directory
+  ansible.builtin.stat:
+    path: /etc/kubernetes
+  register: kubernetes_config_dir
+
+- name: Show Kubernetes configuration state
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      /etc/kubernetes exists={{ kubernetes_config_dir.stat.exists | default(false) }}
+
+- name: Check kubeadm installation
+  ansible.builtin.command:
+    cmd: kubeadm version -o short
+  register: kubeadm_version
+  changed_when: false
+
+- name: Show kubeadm version
+  ansible.builtin.debug:
+    msg: "{{ inventory_hostname }}: {{ kubeadm_version.stdout }}"
+
+- name: Check kubeadm configuration
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_kubeconfig
+
+- name: Show kubeadm configuration state
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      kubelet.conf exists={{ kubelet_kubeconfig.stat.exists | default(false) }}
+
+- name: Check kubeadm reset availability
+  ansible.builtin.command:
+    cmd: kubeadm reset --help
+  register: kubeadm_reset_help
+  changed_when: false
+
+- name: Show kubeadm reset availability
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }}:
+      kubeadm reset command is available
+
+- name: Block destructive reset unless explicitly enabled
+  ansible.builtin.assert:
+    that:
+      - k8s_reset_confirm | default(false) | bool
+    fail_msg: >-
+      Kubernetes reset is disabled.
+      Set k8s_reset_confirm=true explicitly to allow destructive reset.
+    success_msg: >-
+      Kubernetes reset explicitly confirmed.
+
+- name: Include destructive Kubernetes reset
+  ansible.builtin.include_tasks:
+    file: reset.yml
+  when:
+    - k8s_reset_confirm | default(false) | bool
