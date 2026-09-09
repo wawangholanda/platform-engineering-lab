@@ -37,6 +37,13 @@
       tags:
         - k8s_control_plane
 
+- name: Configure workstation kubeconfig
+  hosts: control_plane[0]
+  become: true
+  roles:
+    - role: kubeconfig
+      tags: [kubeconfig]
+
 
 # =========================================================
 # Join additional control planes

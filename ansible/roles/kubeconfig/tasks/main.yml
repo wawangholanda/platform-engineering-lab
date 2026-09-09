@@ -1,0 +1,27 @@
+---
+# =========================================================
+# Workstation kubeconfig
+# =========================================================
+
+- name: Ensure workstation .kube directory exists
+  ansible.builtin.file:
+    path: "{{ lookup('env', 'HOME') }}/.kube"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  become: false
+
+- name: Fetch admin kubeconfig from first control plane
+  ansible.builtin.fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ lookup('env', 'HOME') }}/.kube/config"
+    flat: true
+  become: true
+
+- name: Set workstation kubeconfig permissions
+  ansible.builtin.file:
+    path: "{{ lookup('env', 'HOME') }}/.kube/config"
+    state: file
+    mode: "0600"
+  delegate_to: localhost
+  become: false
