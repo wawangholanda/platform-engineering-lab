@@ -1,0 +1,34 @@
+---
+- name: Get NFS StorageClass
+  kubernetes.core.k8s_info:
+    api_version: storage.k8s.io/v1
+    kind: StorageClass
+    name: nfs
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_storageclass
+  changed_when: false
+  failed_when: false
+
+- name: Validate NFS StorageClass exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_storageclass.failed | default(false))
+      - k8s_validation_storageclass.resources | length == 1
+    fail_msg: >-
+      NFS StorageClass 'nfs' was not found.
+    success_msg: >-
+      NFS StorageClass 'nfs' is present.
+
+- name: Validate NFS StorageClass provisioner
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_storageclass.resources[0].provisioner
+        == 'nfs.csi.k8s.io'
+    fail_msg: >-
+      NFS StorageClass 'nfs' uses an unexpected provisioner:
+      {{ k8s_validation_storageclass.resources[0].provisioner | default('unknown') }}.
+      Expected 'nfs.csi.k8s.io'.
+    success_msg: >-
+      NFS StorageClass uses the expected provisioner:
+      nfs.csi.k8s.io.

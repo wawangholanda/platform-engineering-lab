@@ -1,0 +1,21 @@
+---
+- name: Validate HTTP access through Kubernetes Gateway
+  ansible.builtin.uri:
+    url: "http://192.168.1.240/"
+    method: GET
+    status_code: 200
+    return_content: false
+  register: k8s_validation_gateway_http
+  changed_when: false
+
+- name: Confirm application is reachable through Gateway
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_gateway_http.status == 200
+    fail_msg: >-
+      Kubernetes Gateway HTTP request failed.
+      Expected HTTP 200 but received
+      {{ k8s_validation_gateway_http.status | default('unknown') }}.
+    success_msg: >-
+      Kubernetes Gateway HTTP request succeeded with HTTP 200.
+      Gateway-to-application connectivity is working.

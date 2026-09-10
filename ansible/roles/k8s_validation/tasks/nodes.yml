@@ -1,0 +1,57 @@
+---
+- name: Get Kubernetes nodes
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Node
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_nodes
+  changed_when: false
+
+- name: Validate expected Kubernetes node count
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_nodes.resources | length == groups['k8s'] | length
+    fail_msg: >-
+      Kubernetes node count mismatch.
+      Expected {{ groups['k8s'] | length }} nodes from inventory group 'k8s',
+      but found {{ k8s_validation_nodes.resources | length }} nodes in the cluster.
+    success_msg: >-
+      Kubernetes node count is correct:
+      {{ k8s_validation_nodes.resources | length }} nodes detected.
+
+- name: Validate Kubernetes nodes are present
+  ansible.builtin.assert:
+    that:
+      - item in (k8s_validation_nodes.resources | map(attribute='metadata.name') | list)
+    fail_msg: >-
+      Expected Kubernetes node '{{ item }}' from inventory group 'k8s'
+      was not found in the cluster.
+    success_msg: >-
+      Expected Kubernetes node '{{ item }}' is present in the cluster.
+  loop: "{{ groups['k8s'] }}"
+  loop_control:
+    label: "{{ item }}"
+
+- name: Validate Kubernetes nodes are Ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_nodes.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.conditions')
+          | flatten
+          | selectattr('type', 'equalto', 'Ready')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Kubernetes node '{{ item }}' is not Ready.
+      Check the node conditions with:
+      kubectl get node {{ item }}
+    success_msg: >-
+      Kubernetes node '{{ item }}' is Ready.
+  loop: "{{ groups['k8s'] }}"
+  loop_control:
+    label: "{{ item }}"

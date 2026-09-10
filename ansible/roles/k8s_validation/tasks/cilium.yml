@@ -1,0 +1,77 @@
+---
+- name: Get Cilium DaemonSet
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: DaemonSet
+    namespace: kube-system
+    name: cilium
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_cilium_daemonset
+  changed_when: false
+  failed_when: false
+
+- name: Validate Cilium DaemonSet exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_cilium_daemonset.failed | default(false))
+      - k8s_validation_cilium_daemonset.resources | length == 1
+    fail_msg: >-
+      Cilium DaemonSet 'cilium' was not found in namespace kube-system.
+    success_msg: >-
+      Cilium DaemonSet is present.
+
+- name: Validate Cilium DaemonSet has a pod on every Kubernetes node
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_cilium_daemonset.resources[0].status.desiredNumberScheduled
+        == groups['k8s'] | length
+      - >-
+        k8s_validation_cilium_daemonset.resources[0].status.numberReady
+        == groups['k8s'] | length
+    fail_msg: >-
+      Cilium DaemonSet is not healthy across all Kubernetes nodes.
+      Expected {{ groups['k8s'] | length }} ready pods,
+      desired={{ k8s_validation_cilium_daemonset.resources[0].status.desiredNumberScheduled | default('unknown') }},
+      ready={{ k8s_validation_cilium_daemonset.resources[0].status.numberReady | default('unknown') }}.
+    success_msg: >-
+      Cilium DaemonSet is healthy on all
+      {{ groups['k8s'] | length }} Kubernetes nodes.
+
+- name: Get Cilium Operator Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: kube-system
+    name: cilium-operator
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_cilium_operator
+  changed_when: false
+  failed_when: false
+
+- name: Validate Cilium Operator exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_cilium_operator.failed | default(false))
+      - k8s_validation_cilium_operator.resources | length == 1
+    fail_msg: >-
+      Cilium Operator deployment 'cilium-operator' was not found
+      in namespace kube-system.
+    success_msg: >-
+      Cilium Operator deployment is present.
+
+- name: Validate Cilium Operator is ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_cilium_operator.resources[0].status.readyReplicas | default(0)
+        == k8s_validation_cilium_operator.resources[0].status.replicas | default(0)
+      - >-
+        k8s_validation_cilium_operator.resources[0].status.readyReplicas | default(0) > 0
+    fail_msg: >-
+      Cilium Operator is not ready.
+      Expected all replicas to be ready,
+      replicas={{ k8s_validation_cilium_operator.resources[0].status.replicas | default(0) }},
+      ready={{ k8s_validation_cilium_operator.resources[0].status.readyReplicas | default(0) }}.
+    success_msg: >-
+      Cilium Operator is ready.

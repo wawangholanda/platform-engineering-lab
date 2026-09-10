@@ -176,3 +176,16 @@
     - role: etcd_backup
       tags:
         - etcd_backup
+
+# =========================================================
+# Validate Kubernetes platform
+# =========================================================
+
+- name: Validate Kubernetes platform
+  hosts: control_plane[0]
+  become: true
+  gather_facts: false
+  roles:
+    - role: k8s_validation
+      tags:
+        - k8s_validation

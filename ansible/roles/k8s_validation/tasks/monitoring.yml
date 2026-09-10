@@ -1,0 +1,138 @@
+---
+- name: Get monitoring Deployments
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: monitoring
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_monitoring_deployments
+  changed_when: false
+  failed_when: false
+
+- name: Validate monitoring Deployments exist and are ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_monitoring_deployments.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | list
+          | length
+        ) == 1
+      - >-
+        (
+          k8s_validation_monitoring_deployments.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.readyReplicas')
+          | first
+          | default(0)
+        ) > 0
+      - >-
+        (
+          k8s_validation_monitoring_deployments.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.readyReplicas')
+          | first
+          | default(0)
+        ) ==
+        (
+          k8s_validation_monitoring_deployments.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.replicas')
+          | first
+          | default(0)
+        )
+    fail_msg: >-
+      Monitoring Deployment '{{ item }}' is missing or not ready.
+    success_msg: >-
+      Monitoring Deployment '{{ item }}' exists and is ready.
+  loop:
+    - dev-monitoring-grafana
+    - dev-monitoring-kube-promet-operator
+    - dev-monitoring-kube-state-metrics
+  loop_control:
+    label: "{{ item }}"
+
+- name: Get monitoring StatefulSets
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    namespace: monitoring
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_monitoring_statefulsets
+  changed_when: false
+  failed_when: false
+
+- name: Validate Prometheus and Alertmanager StatefulSets exist and are ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_monitoring_statefulsets.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | list
+          | length
+        ) == 1
+      - >-
+        (
+          k8s_validation_monitoring_statefulsets.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.readyReplicas')
+          | first
+          | default(0)
+        ) > 0
+      - >-
+        (
+          k8s_validation_monitoring_statefulsets.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.readyReplicas')
+          | first
+          | default(0)
+        ) ==
+        (
+          k8s_validation_monitoring_statefulsets.resources
+          | selectattr('metadata.name', 'equalto', item)
+          | map(attribute='status.replicas')
+          | first
+          | default(0)
+        )
+    fail_msg: >-
+      Monitoring StatefulSet '{{ item }}' is missing or not ready.
+    success_msg: >-
+      Monitoring StatefulSet '{{ item }}' exists and is ready.
+  loop:
+    - alertmanager-dev-monitoring-kube-promet-alertmanager
+    - prometheus-dev-monitoring-kube-promet-prometheus
+  loop_control:
+    label: "{{ item }}"
+
+- name: Get Prometheus Node Exporter DaemonSet
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: DaemonSet
+    namespace: monitoring
+    name: dev-monitoring-prometheus-node-exporter
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_node_exporter
+  changed_when: false
+  failed_when: false
+
+- name: Validate Prometheus Node Exporter is ready on every Kubernetes node
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_node_exporter.failed | default(false))
+      - k8s_validation_node_exporter.resources | length == 1
+      - >-
+        k8s_validation_node_exporter.resources[0].status.desiredNumberScheduled
+        == groups['k8s'] | length
+      - >-
+        k8s_validation_node_exporter.resources[0].status.numberReady
+        == groups['k8s'] | length
+    fail_msg: >-
+      Prometheus Node Exporter is not healthy across all Kubernetes nodes.
+      Expected {{ groups['k8s'] | length }} ready pods,
+      desired={{ k8s_validation_node_exporter.resources[0].status.desiredNumberScheduled | default('unknown') }},
+      ready={{ k8s_validation_node_exporter.resources[0].status.numberReady | default('unknown') }}.
+    success_msg: >-
+      Prometheus Node Exporter is healthy on all
+      {{ groups['k8s'] | length }} Kubernetes nodes.

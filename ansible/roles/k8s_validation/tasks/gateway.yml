@@ -1,0 +1,108 @@
+---
+- name: Get Cilium GatewayClass
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: GatewayClass
+    name: cilium
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_gatewayclass
+  changed_when: false
+  failed_when: false
+
+- name: Validate Cilium GatewayClass exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_gatewayclass.failed | default(false))
+      - k8s_validation_gatewayclass.resources | length == 1
+    fail_msg: >-
+      Cilium GatewayClass 'cilium' was not found.
+    success_msg: >-
+      Cilium GatewayClass 'cilium' is present.
+
+- name: Validate Cilium GatewayClass is accepted
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_gatewayclass.resources[0].status.conditions
+          | default([])
+          | selectattr('type', 'equalto', 'Accepted')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Cilium GatewayClass 'cilium' is not Accepted.
+      Check the GatewayClass conditions with:
+      kubectl get gatewayclass cilium -o yaml
+    success_msg: >-
+      Cilium GatewayClass is Accepted.
+
+- name: Get Kubernetes Gateways
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: Gateway
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_gateways
+  changed_when: false
+  failed_when: false
+
+- name: Validate at least one Gateway exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_gateways.failed | default(false))
+      - k8s_validation_gateways.resources | length > 0
+    fail_msg: >-
+      No Kubernetes Gateway resources were found in the cluster.
+    success_msg: >-
+      {{ k8s_validation_gateways.resources | length }} Gateway resource(s) found.
+
+- name: Validate Gateways are Accepted
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.status.conditions
+          | default([])
+          | selectattr('type', 'equalto', 'Accepted')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Gateway '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is not Accepted.
+      Check its conditions with:
+      kubectl -n {{ item.metadata.namespace }}
+      get gateway {{ item.metadata.name }} -o yaml
+    success_msg: >-
+      Gateway '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is Accepted.
+  loop: "{{ k8s_validation_gateways.resources }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+
+- name: Validate Gateways are Programmed
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.status.conditions
+          | default([])
+          | selectattr('type', 'equalto', 'Programmed')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Gateway '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is not Programmed.
+      Check its conditions with:
+      kubectl -n {{ item.metadata.namespace }}
+      get gateway {{ item.metadata.name }} -o yaml
+    success_msg: >-
+      Gateway '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is Programmed.
+  loop: "{{ k8s_validation_gateways.resources }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"

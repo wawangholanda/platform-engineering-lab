@@ -1,0 +1,43 @@
+---
+- name: Get Prometheus resource
+  kubernetes.core.k8s_info:
+    api_version: monitoring.coreos.com/v1
+    kind: Prometheus
+    namespace: monitoring
+    name: dev-monitoring-kube-promet-prometheus
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_prometheus
+  changed_when: false
+  failed_when: false
+
+- name: Validate Prometheus resource exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_prometheus.failed | default(false))
+      - k8s_validation_prometheus.resources | length == 1
+    fail_msg: >-
+      Prometheus resource
+      'dev-monitoring-kube-promet-prometheus' was not found
+      in namespace monitoring.
+    success_msg: >-
+      Prometheus resource is present.
+
+- name: Validate Prometheus is ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_prometheus.resources[0].status.conditions
+          | default([])
+          | selectattr('type', 'equalto', 'Available')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) == 1
+    fail_msg: >-
+      Prometheus resource is not Available.
+      Check its status with:
+      kubectl -n monitoring
+      get prometheus dev-monitoring-kube-promet-prometheus -o yaml
+    success_msg: >-
+      Prometheus resource is Available and ready.

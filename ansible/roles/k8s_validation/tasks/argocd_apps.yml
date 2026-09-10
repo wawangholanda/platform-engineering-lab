@@ -1,0 +1,70 @@
+---
+- name: Get Argo CD Applications
+  kubernetes.core.k8s_info:
+    api_version: argoproj.io/v1alpha1
+    kind: Application
+    namespace: argocd
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_argocd_applications
+  changed_when: false
+  failed_when: false
+
+- name: Validate expected Argo CD Applications exist
+  ansible.builtin.assert:
+    that:
+      - >-
+        item.name in (
+          k8s_validation_argocd_applications.resources
+          | map(attribute='metadata.name')
+          | list
+        )
+    fail_msg: >-
+      Expected Argo CD Application '{{ item.name }}' was not found
+      in namespace argocd.
+    success_msg: >-
+      Expected Argo CD Application '{{ item.name }}' is present.
+  loop: "{{ gitops_applications }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Validate expected Argo CD Applications are Synced
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_argocd_applications.resources
+          | selectattr('metadata.name', 'equalto', item.name)
+          | map(attribute='status.sync.status')
+          | first
+          | default('')
+        ) == 'Synced'
+    fail_msg: >-
+      Argo CD Application '{{ item.name }}' is not Synced.
+      Check with:
+      kubectl -n argocd get application {{ item.name }} -o yaml
+    success_msg: >-
+      Argo CD Application '{{ item.name }}' is Synced.
+  loop: "{{ gitops_applications }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Validate expected Argo CD Applications are Healthy
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          k8s_validation_argocd_applications.resources
+          | selectattr('metadata.name', 'equalto', item.name)
+          | map(attribute='status.health.status')
+          | first
+          | default('')
+        ) == 'Healthy'
+    fail_msg: >-
+      Argo CD Application '{{ item.name }}' is not Healthy.
+      Check with:
+      kubectl -n argocd get application {{ item.name }} -o yaml
+    success_msg: >-
+      Argo CD Application '{{ item.name }}' is Healthy.
+  loop: "{{ gitops_applications }}"
+  loop_control:
+    label: "{{ item.name }}"

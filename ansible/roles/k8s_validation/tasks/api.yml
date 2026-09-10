@@ -1,0 +1,21 @@
+---
+- name: Query Kubernetes API endpoint
+  kubernetes.core.k8s_info:
+    api_version: v1
+    kind: Namespace
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_api
+  changed_when: false
+  failed_when: false
+
+- name: Confirm Kubernetes API endpoint is reachable
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_api.failed | default(false))
+      - k8s_validation_api.resources | length > 0
+    fail_msg: >-
+      Kubernetes API endpoint {{ control_plane_endpoint }} is not reachable
+      or did not return Kubernetes resources through the configured kubeconfig.
+    success_msg: >-
+      Kubernetes API endpoint {{ control_plane_endpoint }} is reachable
+      and responding successfully.

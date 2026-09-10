@@ -1,0 +1,112 @@
+---
+- name: Get Argo CD server Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: argocd
+    name: argocd-server
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_argocd_server
+  changed_when: false
+  failed_when: false
+
+- name: Validate Argo CD server exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_argocd_server.failed | default(false))
+      - k8s_validation_argocd_server.resources | length == 1
+    fail_msg: >-
+      Argo CD server Deployment 'argocd-server' was not found
+      in namespace argocd.
+    success_msg: >-
+      Argo CD server Deployment is present.
+
+- name: Validate Argo CD server is ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_argocd_server.resources[0].status.readyReplicas | default(0)
+        == k8s_validation_argocd_server.resources[0].status.replicas | default(0)
+      - >-
+        k8s_validation_argocd_server.resources[0].status.readyReplicas | default(0) > 0
+    fail_msg: >-
+      Argo CD server is not ready.
+      replicas={{ k8s_validation_argocd_server.resources[0].status.replicas | default(0) }},
+      ready={{ k8s_validation_argocd_server.resources[0].status.readyReplicas | default(0) }}.
+    success_msg: >-
+      Argo CD server is ready.
+
+- name: Get Argo CD repo server Deployment
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: Deployment
+    namespace: argocd
+    name: argocd-repo-server
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_argocd_repo_server
+  changed_when: false
+  failed_when: false
+
+- name: Validate Argo CD repo server exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_argocd_repo_server.failed | default(false))
+      - k8s_validation_argocd_repo_server.resources | length == 1
+    fail_msg: >-
+      Argo CD repo server Deployment 'argocd-repo-server' was not found
+      in namespace argocd.
+    success_msg: >-
+      Argo CD repo server Deployment is present.
+
+- name: Validate Argo CD repo server is ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_argocd_repo_server.resources[0].status.readyReplicas | default(0)
+        == k8s_validation_argocd_repo_server.resources[0].status.replicas | default(0)
+      - >-
+        k8s_validation_argocd_repo_server.resources[0].status.readyReplicas | default(0) > 0
+    fail_msg: >-
+      Argo CD repo server is not ready.
+      replicas={{ k8s_validation_argocd_repo_server.resources[0].status.replicas | default(0) }},
+      ready={{ k8s_validation_argocd_repo_server.resources[0].status.readyReplicas | default(0) }}.
+    success_msg: >-
+      Argo CD repo server is ready.
+
+- name: Get Argo CD application controller StatefulSet
+  kubernetes.core.k8s_info:
+    api_version: apps/v1
+    kind: StatefulSet
+    namespace: argocd
+    name: argocd-application-controller
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_argocd_controller
+  changed_when: false
+  failed_when: false
+
+- name: Validate Argo CD application controller exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_argocd_controller.failed | default(false))
+      - k8s_validation_argocd_controller.resources | length == 1
+    fail_msg: >-
+      Argo CD application controller StatefulSet
+      'argocd-application-controller' was not found
+      in namespace argocd.
+    success_msg: >-
+      Argo CD application controller StatefulSet is present.
+
+- name: Validate Argo CD application controller is ready
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_argocd_controller.resources[0].status.readyReplicas | default(0)
+        == k8s_validation_argocd_controller.resources[0].status.replicas | default(0)
+      - >-
+        k8s_validation_argocd_controller.resources[0].status.readyReplicas | default(0) > 0
+    fail_msg: >-
+      Argo CD application controller is not ready.
+      replicas={{ k8s_validation_argocd_controller.resources[0].status.replicas | default(0) }},
+      ready={{ k8s_validation_argocd_controller.resources[0].status.readyReplicas | default(0) }}.
+    success_msg: >-
+      Argo CD application controller is ready.

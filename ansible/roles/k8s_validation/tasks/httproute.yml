@@ -1,0 +1,75 @@
+---
+- name: Get Kubernetes HTTPRoutes
+  kubernetes.core.k8s_info:
+    api_version: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    kubeconfig: "{{ k8s_validation_kubeconfig }}"
+  register: k8s_validation_httproutes
+  changed_when: false
+  failed_when: false
+
+- name: Validate at least one HTTPRoute exists
+  ansible.builtin.assert:
+    that:
+      - not (k8s_validation_httproutes.failed | default(false))
+      - k8s_validation_httproutes.resources | length > 0
+    fail_msg: >-
+      No HTTPRoute resources were found in the cluster.
+    success_msg: >-
+      {{ k8s_validation_httproutes.resources | length }} HTTPRoute resource(s) found.
+
+- name: Validate HTTPRoutes are Accepted
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.status.parents
+          | default([])
+          | selectattr('conditions', 'defined')
+          | map(attribute='conditions')
+          | flatten
+          | selectattr('type', 'equalto', 'Accepted')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) > 0
+    fail_msg: >-
+      HTTPRoute '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is not Accepted by any Gateway parent.
+      Check its status with:
+      kubectl -n {{ item.metadata.namespace }}
+      get httproute {{ item.metadata.name }} -o yaml
+    success_msg: >-
+      HTTPRoute '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      is Accepted.
+  loop: "{{ k8s_validation_httproutes.resources }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"
+
+- name: Validate HTTPRoutes have resolved references
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          item.status.parents
+          | default([])
+          | selectattr('conditions', 'defined')
+          | map(attribute='conditions')
+          | flatten
+          | selectattr('type', 'equalto', 'ResolvedRefs')
+          | selectattr('status', 'equalto', 'True')
+          | list
+          | length
+        ) > 0
+    fail_msg: >-
+      HTTPRoute '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      does not have ResolvedRefs=True on any Gateway parent.
+      Check its status and referenced resources with:
+      kubectl -n {{ item.metadata.namespace }}
+      get httproute {{ item.metadata.name }} -o yaml
+    success_msg: >-
+      HTTPRoute '{{ item.metadata.namespace }}/{{ item.metadata.name }}'
+      has resolved references.
+  loop: "{{ k8s_validation_httproutes.resources }}"
+  loop_control:
+    label: "{{ item.metadata.namespace }}/{{ item.metadata.name }}"

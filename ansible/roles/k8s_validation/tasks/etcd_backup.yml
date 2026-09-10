@@ -1,0 +1,162 @@
+---
+- name: Check etcd backup timer is enabled
+  ansible.builtin.command:
+    cmd: systemctl is-enabled etcd-backup.timer
+  register: k8s_validation_etcd_timer_enabled
+  changed_when: false
+  failed_when: false
+
+- name: Validate etcd backup timer is enabled
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_etcd_timer_enabled.rc == 0
+      - k8s_validation_etcd_timer_enabled.stdout | trim == 'enabled'
+    fail_msg: >-
+      etcd backup timer is not enabled.
+      Expected etcd-backup.timer to be enabled.
+    success_msg: >-
+      etcd backup timer is enabled.
+
+- name: Check etcd backup timer is active
+  ansible.builtin.command:
+    cmd: systemctl is-active etcd-backup.timer
+  register: k8s_validation_etcd_timer_active
+  changed_when: false
+  failed_when: false
+
+- name: Validate etcd backup timer is active
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_etcd_timer_active.rc == 0
+      - k8s_validation_etcd_timer_active.stdout | trim == 'active'
+    fail_msg: >-
+      etcd backup timer is not active.
+      Expected etcd-backup.timer to be active.
+    success_msg: >-
+      etcd backup timer is active.
+
+- name: Get result of latest etcd backup service execution
+  ansible.builtin.command:
+    cmd: systemctl show etcd-backup.service -p Result -p ExecMainStatus
+  register: k8s_validation_etcd_service_status
+  changed_when: false
+  failed_when: false
+
+- name: Validate latest etcd backup service execution succeeded
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_etcd_service_status.rc == 0
+      - "'Result=success' in k8s_validation_etcd_service_status.stdout_lines"
+      - "'ExecMainStatus=0' in k8s_validation_etcd_service_status.stdout_lines"
+    fail_msg: >-
+      Latest etcd backup service execution was not successful.
+      Check with:
+      systemctl status etcd-backup.service --no-pager
+      journalctl -u etcd-backup.service --no-pager
+    success_msg: >-
+      Latest etcd backup service execution completed successfully.
+
+- name: Find local etcd snapshots
+  ansible.builtin.find:
+    paths: "{{ etcd_backup_local_dir }}"
+    patterns:
+      - "etcd-snapshot-*.db"
+    file_type: file
+  register: k8s_validation_local_snapshots
+  changed_when: false
+
+- name: Validate local etcd snapshot exists
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_local_snapshots.matched | int > 0
+    fail_msg: >-
+      No etcd snapshots were found in {{ etcd_backup_local_dir }}.
+    success_msg: >-
+      {{ k8s_validation_local_snapshots.matched }} local etcd snapshot(s) found.
+
+- name: Find NFS etcd snapshots
+  ansible.builtin.find:
+    paths: "{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
+    patterns:
+      - "etcd-snapshot-*.db"
+    file_type: file
+  register: k8s_validation_nfs_snapshots
+  changed_when: false
+
+- name: Validate NFS etcd snapshot exists
+  ansible.builtin.assert:
+    that:
+      - k8s_validation_nfs_snapshots.matched | int > 0
+    fail_msg: >-
+      No etcd snapshots were found in
+      {{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}.
+    success_msg: >-
+      {{ k8s_validation_nfs_snapshots.matched }} NFS etcd snapshot(s) found.
+
+- name: Select latest local etcd snapshot
+  ansible.builtin.set_fact:
+    k8s_validation_latest_local_snapshot: >-
+      {{
+        (
+          k8s_validation_local_snapshots.files
+          | sort(attribute='mtime')
+          | last
+        ).path
+      }}
+
+- name: Select latest NFS etcd snapshot
+  ansible.builtin.set_fact:
+    k8s_validation_latest_nfs_snapshot: >-
+      {{
+        (
+          k8s_validation_nfs_snapshots.files
+          | sort(attribute='mtime')
+          | last
+        ).path
+      }}
+
+- name: Validate latest local and NFS snapshots have the same filename
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_latest_local_snapshot | basename
+        ==
+        k8s_validation_latest_nfs_snapshot | basename
+    fail_msg: >-
+      Latest local and NFS etcd snapshots do not match.
+      Local: {{ k8s_validation_latest_local_snapshot | basename }}
+      NFS: {{ k8s_validation_latest_nfs_snapshot | basename }}
+    success_msg: >-
+      Latest local and NFS etcd snapshots match:
+      {{ k8s_validation_latest_local_snapshot | basename }}.
+
+- name: Calculate local etcd snapshot checksum
+  ansible.builtin.stat:
+    path: "{{ k8s_validation_latest_local_snapshot }}"
+    checksum_algorithm: sha256
+  register: k8s_validation_local_snapshot_stat
+  changed_when: false
+
+- name: Calculate NFS etcd snapshot checksum
+  ansible.builtin.stat:
+    path: "{{ k8s_validation_latest_nfs_snapshot }}"
+    checksum_algorithm: sha256
+  register: k8s_validation_nfs_snapshot_stat
+  changed_when: false
+
+- name: Validate local and NFS etcd snapshot checksums
+  ansible.builtin.assert:
+    that:
+      - >-
+        k8s_validation_local_snapshot_stat.stat.checksum
+        ==
+        k8s_validation_nfs_snapshot_stat.stat.checksum
+    fail_msg: >-
+      etcd snapshot checksum mismatch.
+      Local SHA-256:
+      {{ k8s_validation_local_snapshot_stat.stat.checksum }}
+      NFS SHA-256:
+      {{ k8s_validation_nfs_snapshot_stat.stat.checksum }}
+    success_msg: >-
+      Latest etcd snapshot checksum matches between local storage
+      and NFS.

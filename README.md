@@ -63,7 +63,7 @@ Current stack:
 - Grafana — visualization and dashboards
 - Alertmanager — alert management
 
-### Observability
+### Observability Roadmap
 
 The Kubernetes platform includes a GitOps-managed observability stack
 based on kube-prometheus-stack.
@@ -284,9 +284,11 @@ The Ansible structure separates:
 The long-term goal is to apply the same Infrastructure as Code
 principles across Proxmox and public cloud environments.
 
-## Roadmap
+## Platform Engineering Lab Roadmap
 
-## Completed
+### Infrastructure and Kubernetes
+
+#### Completed
 
 - [x] Terraform + Proxmox
 - [x] Reusable Terraform VM module
@@ -311,7 +313,9 @@ principles across Proxmox and public cloud environments.
 - [x] Application deployment through GitOps
 - [x] Kubernetes cluster reconstruction validation
 
-## Networking and Ingress
+---
+
+### Networking and Ingress
 
 - [x] Cilium Gateway API
 - [x] Cilium GatewayClass
@@ -328,7 +332,9 @@ principles across Proxmox and public cloud environments.
 - [x] External Grafana access validation
 - [x] Git-managed Gateway configuration
 
-## Observability Roadmap
+---
+
+### Observability
 
 - [x] Prometheus
 - [x] Grafana
@@ -345,7 +351,9 @@ principles across Proxmox and public cloud environments.
 - [ ] Production-oriented Grafana dashboards
 - [ ] Logging stack
 
-## Security Roadmap
+---
+
+### Security Roadmap
 
 - [ ] Kubernetes security baseline
 - [ ] Cilium NetworkPolicy
@@ -355,7 +363,9 @@ principles across Proxmox and public cloud environments.
 - [ ] Image vulnerability scanning
 - [ ] Kubernetes security validation
 
-## Reliability and Disaster Recovery
+---
+
+### Reliability and Disaster Recovery
 
 - [x] Worker node failure testing
 - [x] Control-plane failure testing
@@ -367,18 +377,38 @@ principles across Proxmox and public cloud environments.
 - [x] etcd snapshot restore testing
 - [ ] Automated failure scenarios
 
-## Platform Automation
+---
+
+### Platform Automation
 
 - [ ] Automated infrastructure validation
 - [ ] Kubernetes manifest validation
 - [ ] Ansible linting
 - [ ] Terraform validation
-- [ ] Automated Kubernetes health checks
-- [ ] Post-deployment validation
+
+#### Kubernetes Platform Validation
+
+- [x] Kubernetes node readiness validation
+- [x] Kubernetes API endpoint validation
+- [x] Cilium health validation
+- [x] Gateway API health validation
+- [x] HTTPRoute validation
+- [x] NFS StorageClass validation
+- [x] Argo CD component validation
+- [x] Argo CD Application Sync / Health validation
+- [x] Monitoring component validation
+- [x] Prometheus readiness validation
+- [x] etcd backup validation
+- [x] End-to-end platform validation
+
+#### Testing
+
 - [ ] Integration testing
 - [ ] Automated failure scenario testing
 
-## CI/CD and GitOps
+---
+
+### CI/CD and GitOps
 
 - [x] Argo CD GitOps
 - [x] Git-managed application deployment
@@ -390,7 +420,9 @@ principles across Proxmox and public cloud environments.
 - [ ] Atlantis
 - [ ] Automated infrastructure testing
 
-## Planned Platforms
+---
+
+### Planned Platforms
 
 - [ ] AWS
 - [ ] Google Cloud
