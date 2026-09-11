@@ -1,12 +1,11 @@
 ---
 name: Kubernetes Validate
 
-# on:
-#   pull_request:
-#     paths:
-#       - "kubernetes/**"
-
-"on":
+on:
+  pull_request:
+    paths:
+      - "kubernetes/**"
+      - "environments/dev/kubernetes/**"
   workflow_dispatch:
 
 jobs:
@@ -29,4 +28,14 @@ jobs:
 
       - name: Validate manifests
         run: |
-          ./kubeconform -summary kubernetes/**/*.yaml
+          kubernetes_schema='https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master/{{.NormalizedKubernetesVersion}}-standalone/{{.ResourceKind}}{{.KindSuffix}}.json'
+          crd_schema='https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+          find environments/dev/kubernetes kubernetes -type f \
+            \( -name '*.yaml' -o -name '*.yml' \) \
+            ! -name 'values.yaml' -print0 | \
+            xargs -0 ./kubeconform \
+              -kubernetes-version 1.34.10 \
+              -schema-location "$kubernetes_schema" \
+              -schema-location "$crd_schema" \
+              -summary
