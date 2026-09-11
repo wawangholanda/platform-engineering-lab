@@ -129,9 +129,6 @@
   ansible.builtin.file:
     path: "{{ etcd_backup_nfs_mount }}"
     state: directory
-    owner: root
-    group: root
-    mode: "0755"
 
 - name: Mount etcd backup NFS export
   ansible.posix.mount:
