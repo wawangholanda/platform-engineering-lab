@@ -37,6 +37,16 @@ repos:
     hooks:
       - id: tfsec
 
+  ########################################
+  # Ansible
+  ########################################
+  - repo: local
+    hooks:
+      - id: ansible-lint
+        name: ansible-lint
+        entry: /usr/bin/ansible-lint
+        language: system
+        files: ^ansible/
 
   ########################################
   # Secret Detection

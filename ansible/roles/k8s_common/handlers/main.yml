@@ -1,5 +1,5 @@
 ---
-- name: Apply Kubernetes sysctl
+- name: Apply Kubernetes sysctl  # noqa no-changed-when
   ansible.builtin.command:
     cmd: sysctl --system
 

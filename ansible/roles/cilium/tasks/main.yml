@@ -48,7 +48,7 @@
       rollOutCiliumPods: true
   register: cilium_helm
 
-- name: Restart Cilium Operator after Cilium configuration change
+- name: Restart Cilium Operator after Cilium configuration change  # noqa no-changed-when
   ansible.builtin.command:
     cmd: kubectl -n kube-system rollout restart deployment/cilium-operator
   environment:

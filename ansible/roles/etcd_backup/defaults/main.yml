@@ -3,7 +3,7 @@
 # etcd backup configuration
 # =========================================================
 
-etcd_version: "3.6.5"
+etcd_backup_etcd_version: "3.6.5"
 
 etcd_backup_local_dir: "/var/backups/etcd"
 
@@ -19,6 +19,6 @@ etcd_backup_retention_days: 7
 # etcd DR restore configuration
 # =========================================================
 
-etcd_restore_dir: "/var/lib/etcd-restore"
-etcd_restore_client_port: 12379
-etcd_restore_peer_port: 12380
+etcd_backup_restore_dir: "/var/lib/etcd-restore"
+etcd_backup_restore_client_port: 12379
+etcd_backup_restore_peer_port: 12380

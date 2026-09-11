@@ -8,7 +8,7 @@ set -euo pipefail
 
 SNAPSHOT="${1:-}"
 
-RESTORE_DIR="{{ etcd_restore_dir }}"
+RESTORE_DIR="{{ etcd_backup_restore_dir }}"
 NFS_BACKUP_DIR="{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
 
 PRODUCTION_ETCD_DIR="/var/lib/etcd"

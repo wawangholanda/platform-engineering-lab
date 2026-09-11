@@ -1,16 +1,13 @@
 ---
 - name: Check etcd backup timer is enabled
-  ansible.builtin.command:
-    cmd: systemctl is-enabled etcd-backup.timer
+  ansible.builtin.systemd:
+    name: etcd-backup.timer
   register: k8s_validation_etcd_timer_enabled
-  changed_when: false
-  failed_when: false
 
 - name: Validate etcd backup timer is enabled
   ansible.builtin.assert:
     that:
-      - k8s_validation_etcd_timer_enabled.rc == 0
-      - k8s_validation_etcd_timer_enabled.stdout | trim == 'enabled'
+      - k8s_validation_etcd_timer_enabled.status.UnitFileState == 'enabled'
     fail_msg: >-
       etcd backup timer is not enabled.
       Expected etcd-backup.timer to be enabled.
@@ -18,17 +15,14 @@
       etcd backup timer is enabled.
 
 - name: Check etcd backup timer is active
-  ansible.builtin.command:
-    cmd: systemctl is-active etcd-backup.timer
+  ansible.builtin.systemd:
+    name: etcd-backup.timer
   register: k8s_validation_etcd_timer_active
-  changed_when: false
-  failed_when: false
 
 - name: Validate etcd backup timer is active
   ansible.builtin.assert:
     that:
-      - k8s_validation_etcd_timer_active.rc == 0
-      - k8s_validation_etcd_timer_active.stdout | trim == 'active'
+      - k8s_validation_etcd_timer_active.status.ActiveState == 'active'
     fail_msg: >-
       etcd backup timer is not active.
       Expected etcd-backup.timer to be active.
@@ -36,18 +30,15 @@
       etcd backup timer is active.
 
 - name: Get result of latest etcd backup service execution
-  ansible.builtin.command:
-    cmd: systemctl show etcd-backup.service -p Result -p ExecMainStatus
+  ansible.builtin.systemd:
+    name: etcd-backup.service
   register: k8s_validation_etcd_service_status
-  changed_when: false
-  failed_when: false
 
 - name: Validate latest etcd backup service execution succeeded
   ansible.builtin.assert:
     that:
-      - k8s_validation_etcd_service_status.rc == 0
-      - "'Result=success' in k8s_validation_etcd_service_status.stdout_lines"
-      - "'ExecMainStatus=0' in k8s_validation_etcd_service_status.stdout_lines"
+      - k8s_validation_etcd_service_status.status.Result == 'success'
+      - k8s_validation_etcd_service_status.status.ExecMainStatus | int == 0
     fail_msg: >-
       Latest etcd backup service execution was not successful.
       Check with:
@@ -58,7 +49,7 @@
 
 - name: Find local etcd snapshots
   ansible.builtin.find:
-    paths: "{{ etcd_backup_local_dir }}"
+    paths: "{{ k8s_validation_etcd_backup_local_dir }}"
     patterns:
       - "etcd-snapshot-*.db"
     file_type: file
@@ -70,13 +61,13 @@
     that:
       - k8s_validation_local_snapshots.matched | int > 0
     fail_msg: >-
-      No etcd snapshots were found in {{ etcd_backup_local_dir }}.
+      No etcd snapshots were found in {{ k8s_validation_etcd_backup_local_dir }}.
     success_msg: >-
       {{ k8s_validation_local_snapshots.matched }} local etcd snapshot(s) found.
 
 - name: Find NFS etcd snapshots
   ansible.builtin.find:
-    paths: "{{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}"
+    paths: "{{ k8s_validation_etcd_backup_nfs_mount }}/{{ k8s_validation_etcd_backup_nfs_subdir }}"
     patterns:
       - "etcd-snapshot-*.db"
     file_type: file
@@ -89,7 +80,7 @@
       - k8s_validation_nfs_snapshots.matched | int > 0
     fail_msg: >-
       No etcd snapshots were found in
-      {{ etcd_backup_nfs_mount }}/{{ etcd_backup_nfs_subdir }}.
+      {{ k8s_validation_etcd_backup_nfs_mount }}/{{ k8s_validation_etcd_backup_nfs_subdir }}.
     success_msg: >-
       {{ k8s_validation_nfs_snapshots.matched }} NFS etcd snapshot(s) found.
 

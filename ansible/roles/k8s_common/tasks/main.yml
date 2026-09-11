@@ -16,13 +16,13 @@
 - name: Check active swap
   ansible.builtin.command:
     cmd: swapon --show --noheadings
-  register: active_swap
+  register: k8s_common_active_swap
   changed_when: false
 
-- name: Disable swap
+- name: Disable swap  # noqa no-changed-when
   ansible.builtin.command:
     cmd: swapoff -a
-  when: active_swap.stdout | length > 0
+  when: k8s_common_active_swap.stdout | length > 0
 
 - name: Disable swap permanently in fstab
   ansible.builtin.replace:
@@ -100,12 +100,12 @@
 - name: Check whether containerd configuration exists
   ansible.builtin.stat:
     path: /etc/containerd/config.toml
-  register: containerd_config
+  register: k8s_common_containerd_config
 
-- name: Generate containerd configuration
+- name: Generate containerd configuration  # noqa no-changed-when
   ansible.builtin.shell:
     cmd: containerd config default > /etc/containerd/config.toml
-  when: not containerd_config.stat.exists
+  when: not k8s_common_containerd_config.stat.exists
   notify: Restart containerd
 
 - name: Configure containerd to use systemd cgroups
@@ -160,17 +160,17 @@
     mode: "0644"
     content: |
       deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_repo_version }}/deb/ /
-  register: kubernetes_repository
+  register: k8s_common_kubernetes_repository
 
 
 # =========================================================
 # Kubernetes packages
 # =========================================================
 
-- name: Update apt cache after Kubernetes repository change
+- name: Update apt cache after Kubernetes repository change  # noqa no-handler
   ansible.builtin.apt:
     update_cache: true
-  when: kubernetes_repository.changed
+  when: k8s_common_kubernetes_repository.changed
 
 - name: Install Kubernetes packages
   ansible.builtin.apt:

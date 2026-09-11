@@ -5,36 +5,43 @@
 
 - name: Set etcd download architecture
   ansible.builtin.set_fact:
-    etcd_download_arch: "amd64"
+    etcd_backup_download_arch: "amd64"
   when: ansible_facts["architecture"] == "x86_64"
 
 - name: Fail on unsupported architecture
   ansible.builtin.fail:
     msg: "Unsupported architecture: {{ ansible_facts['architecture'] }}"
-  when: etcd_download_arch is not defined
+  when: etcd_backup_download_arch is not defined
 
 - name: Create temporary etcd download directory
   ansible.builtin.file:
-    path: "/tmp/etcd-v{{ etcd_version }}"
+    path: "/tmp/etcd-v{{ etcd_backup_etcd_version }}"
     state: directory
     mode: "0755"
 
 - name: Download etcd release archive
   ansible.builtin.get_url:
-    url: "https://github.com/etcd-io/etcd/releases/download/v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}.tar.gz"
-    dest: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
+    url: >-
+      {{ 'https://github.com/etcd-io/etcd/releases/download/v' ~
+         etcd_backup_etcd_version ~
+         '/etcd-v' ~
+         etcd_backup_etcd_version ~
+         '-linux-' ~
+         etcd_backup_download_arch ~
+         '.tar.gz' }}
+    dest: "/tmp/etcd-v{{ etcd_backup_etcd_version }}.tar.gz"
     mode: "0644"
 
 - name: Extract etcd release archive
   ansible.builtin.unarchive:
-    src: "/tmp/etcd-v{{ etcd_version }}.tar.gz"
-    dest: "/tmp/etcd-v{{ etcd_version }}"
+    src: "/tmp/etcd-v{{ etcd_backup_etcd_version }}.tar.gz"
+    dest: "/tmp/etcd-v{{ etcd_backup_etcd_version }}"
     remote_src: true
-    creates: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdctl"
+    creates: "/tmp/etcd-v{{ etcd_backup_etcd_version }}/etcd-v{{ etcd_backup_etcd_version }}-linux-{{ etcd_backup_download_arch }}/etcdctl"
 
 - name: Install etcdctl
   ansible.builtin.copy:
-    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdctl"
+    src: "/tmp/etcd-v{{ etcd_backup_etcd_version }}/etcd-v{{ etcd_backup_etcd_version }}-linux-{{ etcd_backup_download_arch }}/etcdctl"
     dest: "/usr/local/bin/etcdctl"
     remote_src: true
     owner: root
@@ -43,7 +50,7 @@
 
 - name: Install etcdutl
   ansible.builtin.copy:
-    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcdutl"
+    src: "/tmp/etcd-v{{ etcd_backup_etcd_version }}/etcd-v{{ etcd_backup_etcd_version }}-linux-{{ etcd_backup_download_arch }}/etcdutl"
     dest: "/usr/local/bin/etcdutl"
     remote_src: true
     owner: root
@@ -52,7 +59,7 @@
 
 - name: Install etcd
   ansible.builtin.copy:
-    src: "/tmp/etcd-v{{ etcd_version }}/etcd-v{{ etcd_version }}-linux-{{ etcd_download_arch }}/etcd"
+    src: "/tmp/etcd-v{{ etcd_backup_etcd_version }}/etcd-v{{ etcd_backup_etcd_version }}-linux-{{ etcd_backup_download_arch }}/etcd"
     dest: "/usr/local/bin/etcd"
     remote_src: true
     owner: root
@@ -125,7 +132,7 @@
 # NFS backup mount
 # =========================================================
 
-- name: Create etcd backup NFS mount directory
+- name: Create etcd backup NFS mount directory  # noqa risky-file-permissions
   ansible.builtin.file:
     path: "{{ etcd_backup_nfs_mount }}"
     state: directory

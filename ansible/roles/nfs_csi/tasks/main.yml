@@ -6,7 +6,7 @@
 - name: Check Kubernetes admin kubeconfig
   ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
-  register: kube_admin_config
+  register: nfs_csi_kube_admin_config
 
 - name: Fail when Kubernetes admin kubeconfig is missing
   ansible.builtin.fail:
@@ -14,7 +14,7 @@
       /etc/kubernetes/admin.conf was not found.
       The Kubernetes control plane must be initialized before
       installing the NFS CSI driver.
-  when: not kube_admin_config.stat.exists
+  when: not nfs_csi_kube_admin_config.stat.exists
 
 
 # =========================================================
@@ -60,7 +60,7 @@
     kind: StorageClass
     name: nfs
     kubeconfig: /etc/kubernetes/admin.conf
-  register: nfs_storageclass
+  register: nfs_csi_nfs_storageclass
 
 - name: Create NFS StorageClass
   kubernetes.core.k8s:
@@ -79,4 +79,4 @@
       mountOptions:
         - nfsvers=4.1
       volumeBindingMode: Immediate
-  when: nfs_storageclass.resources | length == 0
+  when: nfs_csi_nfs_storageclass.resources | length == 0

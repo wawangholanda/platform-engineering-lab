@@ -86,11 +86,11 @@
     namespace: argocd
     name: "{{ item.name }}"
     kubeconfig: /home/ubuntu/.kube/config
-  register: git_application_status
+  register: argocd_bootstrap_git_application_status
   until:
-    - git_application_status.resources | length > 0
-    - git_application_status.resources[0].status.sync.status | default('') == 'Synced'
-    - git_application_status.resources[0].status.health.status | default('') == 'Healthy'
+    - argocd_bootstrap_git_application_status.resources | length > 0
+    - argocd_bootstrap_git_application_status.resources[0].status.sync.status | default('') == 'Synced'
+    - argocd_bootstrap_git_application_status.resources[0].status.health.status | default('') == 'Healthy'
   retries: 60
   delay: 10
   loop: "{{ gitops_applications }}"
@@ -108,11 +108,11 @@
     namespace: argocd
     name: "{{ item.name }}"
     kubeconfig: /home/ubuntu/.kube/config
-  register: helm_application_status
+  register: argocd_bootstrap_helm_application_status
   until:
-    - helm_application_status.resources | length > 0
-    - helm_application_status.resources[0].status.sync.status | default('') == 'Synced'
-    - helm_application_status.resources[0].status.health.status | default('') == 'Healthy'
+    - argocd_bootstrap_helm_application_status.resources | length > 0
+    - argocd_bootstrap_helm_application_status.resources[0].status.sync.status | default('') == 'Synced'
+    - argocd_bootstrap_helm_application_status.resources[0].status.health.status | default('') == 'Healthy'
   retries: 60
   delay: 10
   loop: "{{ gitops_applications }}"

@@ -6,10 +6,10 @@
 - name: Check whether Kubernetes control plane is initialized
   ansible.builtin.stat:
     path: /etc/kubernetes/admin.conf
-  register: kubeadm_initialized
+  register: k8s_control_plane_kubeadm_initialized
 
 
-- name: Initialize Kubernetes control plane
+- name: Initialize Kubernetes control plane  # noqa no-changed-when
   ansible.builtin.command:
     cmd: >
       kubeadm init
@@ -19,7 +19,7 @@
         --upload-certs
   when:
     - inventory_hostname == groups['control_plane'][0]
-    - not kubeadm_initialized.stat.exists
+    - not k8s_control_plane_kubeadm_initialized.stat.exists
 
 
 # =========================================================

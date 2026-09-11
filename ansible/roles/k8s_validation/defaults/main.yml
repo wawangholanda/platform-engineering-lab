@@ -1,6 +1,6 @@
 ---
 k8s_validation_kubeconfig: "/etc/kubernetes/admin.conf"
 
-etcd_backup_local_dir: "/var/backups/etcd"
-etcd_backup_nfs_mount: "/mnt/etcd-backup"
-etcd_backup_nfs_subdir: "etcd-backup/snapshots"
+k8s_validation_etcd_backup_local_dir: "/var/backups/etcd"
+k8s_validation_etcd_backup_nfs_mount: "/mnt/etcd-backup"
+k8s_validation_etcd_backup_nfs_subdir: "etcd-backup/snapshots"
