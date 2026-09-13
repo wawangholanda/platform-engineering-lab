@@ -3,19 +3,23 @@ module "k8s_nfs01" {
 
   vmid           = 107
   name           = "k8s-nfs01"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
   # OS disk
-  storage   = "local-lvm"
+  storage   = "nvme-lab"
   disk_size = 20
 
   # NFS data disk
-  data_storage   = "nvme-gabungan"
+  data_storage   = "nvme-lab"
   data_disk_size = 64
 
   cores  = 2
   memory = 2048
+
+  startup_order    = 10
+  startup_delay    = 30
+  shutdown_timeout = 120
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.27/24"
@@ -29,13 +33,17 @@ module "k8s_cp01" {
 
   vmid           = 100
   name           = "k8s-cp01"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 40
   cores     = 4
   memory    = 8192
+
+  startup_order    = 30
+  startup_delay    = 60
+  shutdown_timeout = 180
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.20/24"
@@ -49,13 +57,17 @@ module "k8s_cp02" {
 
   vmid           = 103
   name           = "k8s-cp02"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 40
   cores     = 4
   memory    = 8192
+
+  startup_order    = 30
+  startup_delay    = 60
+  shutdown_timeout = 180
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.23/24"
@@ -69,13 +81,17 @@ module "k8s_cp03" {
 
   vmid           = 104
   name           = "k8s-cp03"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 40
   cores     = 4
   memory    = 8192
+
+  startup_order    = 30
+  startup_delay    = 60
+  shutdown_timeout = 180
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.24/24"
@@ -89,13 +105,17 @@ module "k8s_worker01" {
 
   vmid           = 101
   name           = "k8s-worker01"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 40
   cores     = 4
   memory    = 8192
+
+  startup_order    = 40
+  startup_delay    = 30
+  shutdown_timeout = 120
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.21/24"
@@ -109,13 +129,17 @@ module "k8s_worker02" {
 
   vmid           = 102
   name           = "k8s-worker02"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 40
   cores     = 4
   memory    = 8192
+
+  startup_order    = 40
+  startup_delay    = 30
+  shutdown_timeout = 120
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.22/24"
@@ -123,18 +147,23 @@ module "k8s_worker02" {
   nameserver     = "192.168.1.1"
   ssh_public_key = var.ssh_public_key
 }
+
 module "k8s_lb01" {
   source = "../../../modules/proxmox-vm"
 
   vmid           = 105
   name           = "k8s-lb01"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 20
   cores     = 2
   memory    = 2048
+
+  startup_order    = 20
+  startup_delay    = 30
+  shutdown_timeout = 120
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.25/24"
@@ -148,13 +177,17 @@ module "k8s_lb02" {
 
   vmid           = 106
   name           = "k8s-lb02"
-  target_node    = "laptop"
+  target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-gabungan"
+  storage   = "nvme-lab"
   disk_size = 20
   cores     = 2
   memory    = 2048
+
+  startup_order    = 20
+  startup_delay    = 30
+  shutdown_timeout = 120
 
   bridge         = "vmbr0"
   ip_address     = "192.168.1.26/24"

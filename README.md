@@ -371,7 +371,7 @@ principles across Proxmox and public cloud environments.
 - [x] Control-plane failure testing
 - [x] Control-plane recovery validation
 - [x] etcd backup automation
-- [ ] Kubernetes backup strategy
+- [x] Kubernetes backup strategy
 - [x] Disaster recovery procedure
 - [x] Kubernetes cluster reconstruction validation
 - [x] etcd snapshot restore testing

@@ -81,3 +81,21 @@ variable "ssh_public_key" {
   sensitive   = false
   default     = null
 }
+
+variable "startup_order" {
+  description = "Proxmox VM startup/shutdown order"
+  type        = number
+  default     = -1
+}
+
+variable "startup_delay" {
+  description = "Delay in seconds before starting the next VM"
+  type        = number
+  default     = -1
+}
+
+variable "shutdown_timeout" {
+  description = "Shutdown timeout in seconds"
+  type        = number
+  default     = -1
+}

@@ -75,6 +75,12 @@ resource "proxmox_vm_qemu" "this" {
 
   start_at_node_boot = true
 
+  startup_shutdown {
+    order            = var.startup_order
+    startup_delay    = var.startup_delay
+    shutdown_timeout = var.shutdown_timeout
+  }
+
   define_connection_info = false
 
   agent = 1
@@ -83,7 +89,6 @@ resource "proxmox_vm_qemu" "this" {
     ignore_changes = [
       vm_state,
       disk[0].format,
-      startup_shutdown,
     ]
   }
 }
