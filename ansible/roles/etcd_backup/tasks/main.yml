@@ -122,12 +122,6 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
-- name: Enable and start etcd backup timer
-  ansible.builtin.systemd:
-    name: etcd-backup.timer
-    enabled: true
-    state: started
-
 # =========================================================
 # NFS backup mount
 # =========================================================
@@ -164,3 +158,28 @@
     owner: root
     group: root
     mode: "0700"
+
+- name: Enable and start etcd backup timer
+  ansible.builtin.systemd:
+    name: etcd-backup.timer
+    enabled: true
+    state: started
+
+- name: Enable and start etcd backup timer
+  ansible.builtin.systemd:
+    name: etcd-backup.timer
+    enabled: true
+    state: started
+
+- name: Check for existing etcd backup
+  ansible.builtin.find:
+    paths: "{{ etcd_backup_local_dir }}"
+    patterns: "etcd-snapshot-*.db"
+    file_type: file
+  register: etcd_backup_existing_snapshots
+
+- name: Run initial etcd backup
+  ansible.builtin.systemd:
+    name: etcd-backup.service
+    state: started
+  when: etcd_backup_existing_snapshots.matched == 0

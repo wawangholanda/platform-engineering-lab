@@ -85,6 +85,7 @@
       - gpg
       - containerd
       - nfs-common
+      - python3-kubernetes
     state: present
     update_cache: true
     cache_valid_time: 3600
