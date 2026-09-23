@@ -7,11 +7,11 @@ module "k8s_nfs01" {
   clone_template = "ubuntu-2404-template"
 
   # OS disk
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 20
 
   # NFS data disk
-  data_storage   = "nvme-lab"
+  data_storage   = "local-zfs"
   data_disk_size = 64
 
   cores  = 2
@@ -36,7 +36,7 @@ module "k8s_cp01" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 40
   cores     = 4
   memory    = 8192
@@ -60,7 +60,7 @@ module "k8s_cp02" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 40
   cores     = 4
   memory    = 8192
@@ -84,7 +84,7 @@ module "k8s_cp03" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 40
   cores     = 4
   memory    = 8192
@@ -108,7 +108,7 @@ module "k8s_worker01" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 40
   cores     = 4
   memory    = 8192
@@ -132,7 +132,7 @@ module "k8s_worker02" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 40
   cores     = 4
   memory    = 8192
@@ -156,7 +156,7 @@ module "k8s_lb01" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 20
   cores     = 2
   memory    = 2048
@@ -180,7 +180,7 @@ module "k8s_lb02" {
   target_node    = "pve"
   clone_template = "ubuntu-2404-template"
 
-  storage   = "nvme-lab"
+  storage   = "local-zfs"
   disk_size = 20
   cores     = 2
   memory    = 2048

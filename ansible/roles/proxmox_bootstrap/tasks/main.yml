@@ -1,0 +1,152 @@
+---
+- name: Check whether Proxmox template exists
+  ansible.builtin.command:
+    cmd: "qm status {{ proxmox_bootstrap_template_vmid }}"
+  register: proxmox_bootstrap_template_status
+  changed_when: false
+  failed_when: false
+
+- name: Download Ubuntu cloud image
+  ansible.builtin.get_url:
+    url: "{{ proxmox_bootstrap_template_image_url }}"
+    dest: "/var/lib/vz/template/iso/noble-server-cloudimg-amd64.img"
+    checksum: "{{ proxmox_bootstrap_template_image_checksum }}"
+    mode: "0644"
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Create Proxmox template VM
+  ansible.builtin.command:
+    cmd: >-
+      qm create {{ proxmox_bootstrap_template_vmid }}
+      --name {{ proxmox_bootstrap_template_name }}
+      --memory {{ proxmox_bootstrap_template_memory }}
+      --cores {{ proxmox_bootstrap_template_cores }}
+      --net0 virtio,bridge={{ proxmox_bootstrap_template_bridge }}
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Import Ubuntu cloud image into Proxmox template
+  ansible.builtin.command:
+    cmd: >-
+      qm disk import {{ proxmox_bootstrap_template_vmid }}
+      /var/lib/vz/template/iso/noble-server-cloudimg-amd64.img
+      {{ proxmox_bootstrap_template_storage }}
+      --target-disk scsi0
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Configure Proxmox template disk controller
+  ansible.builtin.command:
+    cmd: >-
+      qm set {{ proxmox_bootstrap_template_vmid }}
+      --scsihw virtio-scsi-pci
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Configure Proxmox template cloud-init drive
+  ansible.builtin.command:
+    cmd: >-
+      qm set {{ proxmox_bootstrap_template_vmid }}
+      --ide2 {{ proxmox_bootstrap_template_storage }}:cloudinit
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Configure Proxmox template boot order
+  ansible.builtin.command:
+    cmd: >-
+      qm set {{ proxmox_bootstrap_template_vmid }}
+      --boot order=scsi0
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Convert Ubuntu VM to Proxmox template
+  ansible.builtin.command:
+    cmd: "qm template {{ proxmox_bootstrap_template_vmid }}"
+  changed_when: true
+  when: proxmox_bootstrap_template_status.rc != 0
+
+- name: Check whether Terraform Proxmox user exists
+  ansible.builtin.command:
+    cmd: "pveum user list --output-format json"
+  register: proxmox_bootstrap_users
+  changed_when: false
+  check_mode: false
+
+- name: Create Terraform Proxmox user
+  ansible.builtin.command:
+    cmd: >-
+      pveum user add {{ proxmox_bootstrap_terraform_user }}
+      --comment "Terraform provider"
+  changed_when: true
+  when: >-
+    (proxmox_bootstrap_users.stdout | from_json
+    | selectattr('userid', 'equalto', proxmox_bootstrap_terraform_user)
+    | list
+    | length) == 0
+
+- name: Check whether Terraform Proxmox role exists
+  ansible.builtin.command:
+    cmd: "pveum role list --output-format json"
+  register: proxmox_bootstrap_roles
+  changed_when: false
+  check_mode: false
+
+- name: Create Terraform Proxmox role
+  ansible.builtin.command:
+    cmd: >-
+      pveum role add {{ proxmox_bootstrap_terraform_role }}
+      --privs Sys.Modify
+  changed_when: true
+  when: >-
+    (proxmox_bootstrap_roles.stdout | from_json
+    | selectattr('roleid', 'equalto', proxmox_bootstrap_terraform_role)
+    | list
+    | length) == 0
+
+- name: Check whether Terraform API token exists
+  ansible.builtin.command:
+    cmd: >-
+      pveum user token list {{ proxmox_bootstrap_terraform_user }}
+      --output-format json
+  register: proxmox_bootstrap_tokens
+  changed_when: false
+  check_mode: false
+
+- name: Create Terraform API token
+  ansible.builtin.command:
+    cmd: >-
+      pveum user token add {{ proxmox_bootstrap_terraform_user }}
+      {{ proxmox_bootstrap_terraform_token_name }}
+      --privsep 0
+      --expire 0
+  register: proxmox_bootstrap_terraform_token_create
+  changed_when: true
+  when: >-
+    (proxmox_bootstrap_tokens.stdout | from_json
+    | selectattr('tokenid', 'equalto', proxmox_bootstrap_terraform_token_name)
+    | list
+    | length) == 0
+  no_log: true
+
+- name: Check Terraform user ACL
+  ansible.builtin.command:
+    cmd: "pveum acl list --output-format json"
+  register: proxmox_bootstrap_acls
+  changed_when: false
+  check_mode: false
+
+- name: Grant Terraform user Sys.Modify permission
+  ansible.builtin.command:
+    cmd: >-
+      pveum acl modify /
+      --users {{ proxmox_bootstrap_terraform_user }}
+      --roles {{ proxmox_bootstrap_terraform_role }}
+  changed_when: true
+  when: >-
+    (proxmox_bootstrap_acls.stdout | from_json
+    | selectattr('path', 'equalto', '/')
+    | selectattr('type', 'equalto', 'user')
+    | selectattr('ugid', 'equalto', proxmox_bootstrap_terraform_user)
+    | selectattr('roleid', 'equalto', proxmox_bootstrap_terraform_role)
+    | list
+    | length) == 0

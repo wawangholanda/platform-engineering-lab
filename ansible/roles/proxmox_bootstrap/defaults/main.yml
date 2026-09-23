@@ -1,0 +1,15 @@
+---
+proxmox_bootstrap_terraform_user: "terraform-prov@pve"
+proxmox_bootstrap_terraform_token_name: "terraform"
+
+proxmox_bootstrap_terraform_role: "TerraformSysModify"
+
+proxmox_bootstrap_template_vmid: 9000
+proxmox_bootstrap_template_name: "ubuntu-2404-template"
+proxmox_bootstrap_template_image_url: "https://cloud-images.ubuntu.com/noble/20260826/noble-server-cloudimg-amd64.img"
+proxmox_bootstrap_template_image_checksum: "sha256:612b2c0cc1bc413a6cb8c38fd611794caf0f2b436c50013d8b3794db12ad7354"
+
+proxmox_bootstrap_template_storage: "local-zfs"
+proxmox_bootstrap_template_memory: 2048
+proxmox_bootstrap_template_cores: 2
+proxmox_bootstrap_template_bridge: "vmbr0"

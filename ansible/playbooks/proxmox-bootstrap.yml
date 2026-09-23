@@ -1,0 +1,10 @@
+---
+- name: Bootstrap Proxmox for Terraform
+  hosts: proxmox
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: proxmox_bootstrap
+      tags:
+        - proxmox_bootstrap
