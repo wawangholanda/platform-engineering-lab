@@ -5,11 +5,14 @@
 Argo CD is used as the GitOps controller for the Kubernetes platform.
 
 Git is the source of truth for Kubernetes application and platform
-configuration, while Argo CD continuously reconciles the desired state
-with the live Kubernetes cluster.
+configuration, while Argo CD continuously reconciles the desired state with
+the live Kubernetes cluster.
 
 The GitOps architecture manages both application workloads and platform
 resources, including monitoring and Gateway API configuration.
+
+Argo CD is installed and bootstrapped by Ansible. After the platform is
+available, Argo CD manages resources defined in the Git repository.
 
 ## Architecture
 
@@ -36,6 +39,30 @@ resources, including monitoring and Gateway API configuration.
 
 Argo CD continuously reconciles these resources against the desired state
 defined in Git.
+
+The architecture separates the responsibilities of infrastructure
+provisioning, platform installation, and application delivery:
+
+```text
+Terraform
+    |
+    v
+Proxmox Infrastructure
+    |
+    v
+Ansible
+    |
+    +-- Kubernetes
+    +-- Cilium
+    +-- Argo CD
+    |
+    v
+Argo CD
+    |
+    +-- Applications
+    +-- Monitoring
+    +-- Gateway API
+```
 
 ## Repository Structure
 
@@ -65,8 +92,8 @@ environments/dev/kubernetes/
     └── grafana-reference-grant.yaml
 ```
 
-This structure separates application, monitoring, and networking
-configuration while keeping them under the same GitOps repository.
+The structure separates application, monitoring, and networking configuration
+while keeping them under the same GitOps repository.
 
 ## Applications
 
@@ -78,8 +105,14 @@ The NGINX application is deployed from Git manifests into:
 namespace: demo
 ```
 
-The application consists of Kubernetes resources defining the workload
-and its Service.
+The application consists of Kubernetes resources defining the workload,
+namespace, and Service.
+
+The application resources are stored under:
+
+```text
+environments/dev/kubernetes/apps/nginx/
+```
 
 ### dev-monitoring
 
@@ -102,9 +135,15 @@ The stack provides:
 * Alertmanager
 * Kubernetes monitoring components
 
+The monitoring application is managed by the Argo CD application:
+
+```text
+dev-monitoring
+```
+
 ### dev-gateway
 
-The Gateway API resources are managed through the GitOps application:
+The Gateway API resources are managed through:
 
 ```text
 dev-gateway
@@ -113,19 +152,26 @@ dev-gateway
 The source path is:
 
 ```text
-environments/dev/kubernetes/gateway
+environments/dev/kubernetes/gateway/
 ```
 
-The application manages the Cilium Gateway configuration and associated
-HTTP routing resources.
+The application manages Cilium Gateway configuration and associated HTTP
+routing resources.
 
 The Gateway configuration includes:
 
-* CiliumLoadBalancerIPPool
-* CiliumL2AnnouncementPolicy
-* Gateway
-* HTTPRoute
-* ReferenceGrant
+* `CiliumLoadBalancerIPPool`
+* `CiliumL2AnnouncementPolicy`
+* `Gateway`
+* `HTTPRoute`
+* `ReferenceGrant`
+
+The primary application Gateway is:
+
+```text
+nginx-gateway
+192.168.1.240
+```
 
 ## GitOps Workflow
 
@@ -150,6 +196,27 @@ resources.
 
 Changes to the desired state are represented as version-controlled Git
 changes and reconciled by Argo CD.
+
+The normal change flow is:
+
+```text
+Developer Change
+      |
+      v
+Git Commit
+      |
+      v
+Git Repository
+      |
+      v
+Argo CD Reconciliation
+      |
+      v
+Kubernetes Resources
+      |
+      v
+Workload / Platform State
+```
 
 ## Argo CD Configuration
 
@@ -180,6 +247,23 @@ https://github.com/wawangholanda/platform-engineering-lab.git
 Argo CD itself is installed and configured through Ansible, while the
 resources managed by Argo CD are defined in Git.
 
+This creates a clear boundary:
+
+```text
+Ansible
+   |
+   +-- Install Argo CD
+   +-- Bootstrap Argo CD
+   |
+   v
+Argo CD
+   |
+   +-- Reconcile GitOps Applications
+   |
+   v
+Kubernetes
+```
+
 ## Argo CD Installation Architecture
 
 Argo CD is installed using Ansible.
@@ -191,10 +275,26 @@ ansible/roles/argocd/
 ansible/roles/argocd_bootstrap/
 ```
 
-The separation between installation and application management is
-intentional:
+The platform playbook is:
 
 ```text
+ansible/playbooks/site.yml
+```
+
+The separation between installation and application management is intentional.
+
+Ansible establishes the Argo CD platform, while Argo CD manages the Kubernetes
+resources defined by the Git repository.
+
+This means a cluster reconstruction can follow the same layered process:
+
+```text
+Proxmox
+   |
+   v
+Terraform
+   |
+   v
 Ansible
    |
    v
@@ -203,9 +303,6 @@ Argo CD
    v
 GitOps Resources
 ```
-
-Ansible establishes the Argo CD platform, while Argo CD manages the
-Kubernetes resources defined by the Git repository.
 
 ## External Access
 
@@ -253,6 +350,22 @@ configs:
 This prevents Argo CD from attempting to terminate TLS again behind the
 reverse proxy.
 
+The external access path therefore separates TLS termination from Kubernetes
+application routing:
+
+```text
+External HTTPS
+      |
+      v
+Nginx Proxy Manager
+      |
+      v
+Cilium Gateway API
+      |
+      v
+Argo CD Service
+```
+
 ## Gateway API Integration
 
 Argo CD participates in the Gateway API architecture through a dedicated
@@ -262,8 +375,8 @@ HTTPRoute:
 argocd-route
 ```
 
-The HTTPRoute is located in the `default` namespace and references the
-Argo CD Service in the `argocd` namespace.
+The HTTPRoute is located in the `default` namespace and references the Argo CD
+Service in the `argocd` namespace.
 
 Because the backend Service is located in another namespace, the routing
 configuration uses:
@@ -280,6 +393,9 @@ environments/dev/kubernetes/gateway/argocd-reference-grant.yaml
 
 This creates an explicit cross-namespace permission for the Gateway API
 backend reference.
+
+The same Gateway API architecture is also used for Grafana and the NGINX
+application.
 
 ## Monitoring Integration
 
@@ -337,8 +453,8 @@ docs/observability/prometheus.md
 
 ## Configuration Drift
 
-Argo CD represents differences between the desired state in Git and the
-live Kubernetes state as synchronization drift.
+Argo CD represents differences between the desired state in Git and the live
+Kubernetes state as synchronization drift.
 
 The conceptual state flow is:
 
@@ -352,14 +468,21 @@ Desired State in Git
   Live Kubernetes State
 ```
 
-When the live state differs from the desired Git state, Argo CD can
-identify the resource as `OutOfSync`.
+When the live state differs from the desired Git state, Argo CD can identify
+the resource as:
+
+```text
+OutOfSync
+```
 
 Persistent configuration changes belong in Git so that the desired state
 remains reproducible and auditable.
 
-Manual changes to GitOps-managed resources are therefore not considered
-the persistent source of truth.
+Manual changes to GitOps-managed resources are therefore not considered the
+persistent source of truth.
+
+When troubleshooting a resource, the desired state in Git should be checked
+before making persistent manual changes to the cluster.
 
 ## Self-Healing and Reconciliation
 
@@ -388,28 +511,44 @@ Kubernetes
              |                 |
              v                 v
           Synced            OutOfSync
-             |                 |
-             |                 v
-             |             Reconciliation
-             |                 |
-             +--------<--------+
+                               |
+                               v
+                         Reconciliation
+                               |
+                               +-------->
 ```
 
 This allows GitOps-managed resources to remain aligned with the declared
 configuration.
 
+The exact synchronization behavior depends on the Argo CD application
+configuration and its configured sync policies.
+
 ## Current GitOps Applications
 
 The current environment includes the following major Argo CD applications:
 
-| Application      | Purpose                              |
-| ---------------- | ------------------------------------ |
-| `dev-nginx`      | NGINX application                    |
-| `dev-monitoring` | Prometheus, Grafana and Alertmanager |
-| `dev-gateway`    | Cilium Gateway API resources         |
+| Application      | Purpose                               |
+| ---------------- | ------------------------------------- |
+| `dev-nginx`      | NGINX application                     |
+| `dev-monitoring` | Prometheus, Grafana, and Alertmanager |
+| `dev-gateway`    | Cilium Gateway API resources          |
 
-The applications represent different layers of the Kubernetes platform
-while remaining managed through the same GitOps workflow.
+The applications represent different layers of the Kubernetes platform while
+remaining managed through the same GitOps workflow.
+
+The current applications can be inspected with:
+
+```bash
+kubectl get applications -n argocd
+```
+
+For synchronization and health state:
+
+```bash
+kubectl get applications -n argocd \
+  -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status
+```
 
 ## Separation of Responsibilities
 
@@ -441,7 +580,63 @@ This creates a layered infrastructure model:
 * Terraform manages infrastructure.
 * Ansible manages cluster and platform installation.
 * Argo CD manages Kubernetes application and platform resources.
-* Git stores the desired configuration.
+* Git stores the desired configuration for GitOps-managed resources.
+
+The separation is important during disaster recovery because each layer has a
+different recovery responsibility.
+
+## Disaster Recovery Relationship
+
+Argo CD is part of the Kubernetes platform reconstruction process.
+
+During a full Kubernetes reconstruction:
+
+```text
+Proxmox Bootstrap
+       |
+       v
+Terraform
+       |
+       v
+Ansible
+       |
+       v
+Kubernetes
+       |
+       v
+Argo CD
+       |
+       v
+GitOps Applications
+```
+
+The Git repository allows GitOps-managed resources to be reconstructed after
+the Kubernetes cluster has been restored.
+
+Argo CD does not replace etcd backups.
+
+Kubernetes control-plane state and GitOps source state are separate recovery
+layers:
+
+```text
+etcd
+ |
+ +-- Kubernetes API objects and control-plane state
+
+Git
+ |
+ +-- GitOps desired state
+```
+
+An etcd restore can restore Kubernetes objects that existed at the snapshot
+point, but it does not replace the Git repository as the persistent source of
+truth for GitOps-managed configuration.
+
+The full reconstruction procedure is documented in:
+
+```text
+docs/disaster-recovery/kubernetes-disaster-recovery-runbook.md
+```
 
 ## Operational Principles
 
@@ -451,14 +646,17 @@ The GitOps architecture follows these principles:
 * Argo CD is responsible for reconciliation.
 * Kubernetes resources are represented declaratively.
 * Configuration changes are version controlled.
-* Application and platform resources can be managed through the same
-  GitOps workflow.
-* Manual changes to GitOps-managed resources should not become the
-  persistent configuration.
+* Application and platform resources can be managed through the same GitOps
+  workflow.
+* Manual changes to GitOps-managed resources should not become the persistent
+  configuration.
 * Gateway API configuration is managed through Git.
 * Monitoring configuration is managed through Git.
 * Git history provides an audit trail for configuration changes.
 * The desired state remains reproducible.
+* Infrastructure provisioning remains separate from application delivery.
+* Disaster recovery procedures preserve the separation between etcd state and
+  GitOps desired state.
 
 ## Future Improvements
 
@@ -472,6 +670,10 @@ Planned GitOps improvements include:
 * Multi-environment GitOps structure
 * Automated deployment validation
 * Policy-based deployment controls
+
+These improvements should preserve the existing separation between
+infrastructure provisioning, platform configuration, and GitOps application
+delivery.
 
 ## Related Documentation
 
@@ -489,8 +691,13 @@ docs/
 │   └── storage-nfs.md
 ├── observability/
 │   └── prometheus.md
-└── operations/
-    ├── validation.md
-    ├── control-plane-failure.md
-    └── startup-shutdown.md
+├── operations/
+│   ├── validation.md
+│   ├── control-plane-failure.md
+│   └── startup-shutdown.md
+└── disaster-recovery/
+    ├── kubernetes-disaster-recovery-runbook.md
+    ├── control-plane-node-recovery.md
+    ├── worker-node-recovery.md
+    └── etcd-restore-runbook.md
 ```

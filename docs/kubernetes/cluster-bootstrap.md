@@ -2,124 +2,313 @@
 
 ## Overview
 
-The Kubernetes cluster is provisioned on Proxmox using Terraform and bootstrapped with Ansible.
+The Kubernetes cluster is provisioned on Proxmox using Terraform and
+configured with Ansible.
 
-Terraform manages the infrastructure layer, while Ansible configures the operating system and initializes the Kubernetes platform.
+The bootstrap process is divided into infrastructure provisioning,
+platform configuration, and application delivery:
 
-The bootstrap process establishes the Kubernetes control plane, worker nodes, networking, persistent storage, GitOps, and observability components.
+```text
+Proxmox Bootstrap
+        |
+        v
+Terraform
+        |
+        v
+Proxmox VMs
+        |
+        v
+Ansible Platform Bootstrap
+        |
+        +-------------------+
+        |                   |
+        v                   v
+Load Balancers       Kubernetes Nodes
+                            |
+                            v
+                         kubeadm
+                            |
+                            v
+                         Cilium
+                            |
+                            v
+                       NFS / CSI
+                            |
+                            v
+                         Argo CD
+                            |
+                            v
+                      GitOps Applications
+                            |
+                            v
+                        Monitoring
+                            |
+                            v
+                         Validation
+```
+
+Proxmox Bootstrap prepares the Proxmox environment required by Terraform,
+including the Terraform API credentials and the Ubuntu VM template.
+
+Terraform provisions the virtual machines.
+
+Ansible configures the operating system and Kubernetes platform.
+
+Argo CD then manages persistent Kubernetes application and platform
+resources from Git.
+
+The Ansible platform bootstrap also configures etcd backup automation and
+performs Kubernetes platform validation after the platform has been
+established.
+
+This separation allows infrastructure, platform configuration, and
+application configuration to be managed independently.
 
 ## Bootstrap Flow
 
+The complete reconstruction flow is:
+
 ```text
+Proxmox Bootstrap
+        |
+        v
 Terraform
-    |
-    v
+        |
+        v
 Proxmox VMs
-    |
-    v
+        |
+        v
 Load Balancers
-    |
-    v
+        |
+        v
 Common Kubernetes Configuration
-    |
-    v
+        |
+        v
 First Control Plane
-    |
-    v
+        |
+        v
+Workstation Kubeconfig
+        |
+        v
 Additional Control Planes
-    |
-    v
+        |
+        v
 Control-Plane Metrics
-    |
-    v
+        |
+        v
 Helm
-    |
-    v
+        |
+        v
 Cilium
-    |
-    v
+        |
+        v
 Workers
-    |
-    v
-NFS Server / NFS CSI
-    |
-    v
+        |
+        v
+NFS Server
+        |
+        v
+NFS CSI
+        |
+        v
 Argo CD
-    |
-    v
-GitOps Applications
-    |
-    v
-Monitoring
-    |
-    v
-Gateway API
+        |
+        v
+GitOps Bootstrap
+        |
+        v
+etcd Backup
+        |
+        v
+Kubernetes Platform Validation
 ```
+
+The bootstrap sequence is intentionally ordered so that the Kubernetes
+control plane is established before workers and higher-level platform
+services are configured.
+
+## Infrastructure Bootstrap
+
+Before Terraform can provision the Kubernetes infrastructure, the Proxmox
+host is prepared through:
+
+```text
+ansible/playbooks/proxmox-bootstrap.yml
+```
+
+The corresponding role is:
+
+```text
+ansible/roles/proxmox_bootstrap/
+```
+
+The Proxmox bootstrap prepares the Terraform provisioning prerequisites:
+
+* Terraform API user
+* Terraform API role
+* Terraform API token
+* Required Proxmox ACLs
+* Ubuntu 24.04 VM template
+* Cloud-init configuration required by the template
+
+The current Kubernetes VM template is:
+
+```text
+VMID: 9000
+Name: ubuntu-2404-template
+```
+
+The infrastructure provisioning stage is then handled by Terraform under:
+
+```text
+environments/dev/proxmox/
+```
+
+The Terraform lifecycle is:
+
+```text
+Proxmox Bootstrap
+        |
+        v
+Terraform init
+        |
+        v
+Terraform validate
+        |
+        v
+Terraform plan
+        |
+        v
+Terraform apply
+        |
+        v
+Proxmox VMs
+```
+
+Terraform is responsible for infrastructure state, while Ansible is
+responsible for operating-system and platform configuration.
 
 ## Cluster Configuration
 
-| Component    | Value              |
-| ------------ | ------------------ |
-| Kubernetes   | 1.34.10            |
-| kubeadm      | 1.34.10            |
-| kubelet      | 1.34.10            |
-| containerd   | 2.2.1              |
-| OS           | Ubuntu 24.04.4 LTS |
-| CNI          | Cilium 1.20.0      |
-| Pod CIDR     | 10.0.0.0/16        |
-| Service CIDR | 10.96.0.0/12       |
-| Cluster DNS  | 10.96.0.10         |
-| API Endpoint | 192.168.1.30:6443  |
+| Component    | Value             |
+| ------------ | ----------------- |
+| Kubernetes   | 1.34.11           |
+| kubeadm      | 1.34.11           |
+| kubelet      | 1.34.11           |
+| containerd   | 2.2.1             |
+| OS           | Ubuntu 24.04.5    |
+| CNI          | Cilium 1.20.0     |
+| Helm         | 3.21.4            |
+| Pod CIDR     | 10.0.0.0/16       |
+| Service CIDR | 10.96.0.0/12      |
+| Cluster DNS  | 10.96.0.10        |
+| API Endpoint | 192.168.1.30:6443 |
 
 ## Node Topology
 
 | Host         | Role          | IP           |
 | ------------ | ------------- | ------------ |
 | k8s-cp01     | Control Plane | 192.168.1.20 |
-| k8s-cp02     | Control Plane | 192.168.1.23 |
-| k8s-cp03     | Control Plane | 192.168.1.24 |
 | k8s-worker01 | Worker        | 192.168.1.21 |
 | k8s-worker02 | Worker        | 192.168.1.22 |
+| k8s-cp02     | Control Plane | 192.168.1.23 |
+| k8s-cp03     | Control Plane | 192.168.1.24 |
 | k8s-lb01     | Load Balancer | 192.168.1.25 |
 | k8s-lb02     | Load Balancer | 192.168.1.26 |
 | k8s-nfs01    | NFS Server    | 192.168.1.27 |
 
-## Kubernetes API High Availability
-
-The Kubernetes API is exposed through the virtual endpoint:
+The Kubernetes API uses a virtual endpoint at:
 
 ```text
 192.168.1.30:6443
 ```
 
-The API endpoint is implemented using two load-balancer nodes:
+## Kubernetes API High Availability
+
+The Kubernetes API is exposed through a highly available virtual endpoint:
+
+```text
+192.168.1.30:6443
+```
+
+The endpoint is implemented using two load-balancer nodes:
 
 ```text
                     192.168.1.30
-                    API VIP
-                       |
-             +---------+---------+
-             |                   |
-          lb01                 lb02
-       192.168.1.25         192.168.1.26
-             |                   |
-             +---------+---------+
-                       |
-          +------------+------------+
-          |            |            |
-        cp01         cp02         cp03
-     192.168.1.20  192.168.1.23  192.168.1.24
+                       API VIP
+                          |
+                +---------+---------+
+                |                   |
+             lb01                 lb02
+          192.168.1.25         192.168.1.26
+                |                   |
+                +---------+---------+
+                          |
+             +------------+------------+
+             |            |            |
+           cp01         cp02         cp03
+        192.168.1.20 192.168.1.23 192.168.1.24
 ```
 
-HAProxy distributes API traffic across the control-plane nodes, while Keepalived provides the virtual IP.
+HAProxy distributes Kubernetes API traffic across the control-plane nodes.
+
+Keepalived provides the virtual IP and failover between the two load
+balancers.
 
 The control plane uses a three-member stacked etcd topology.
 
-## Bootstrap Components
+## Ansible Platform Bootstrap
 
-### Common Node Configuration
+The main Ansible entry point is:
 
-The `k8s_common` role prepares Kubernetes nodes with the required operating-system and container runtime configuration.
+```text
+ansible/playbooks/site.yml
+```
+
+The playbook configures the Kubernetes platform after Terraform has
+provisioned the required virtual machines.
+
+The execution order implemented by `site.yml` is:
+
+```text
+1. Load Balancers
+2. Common Kubernetes Configuration
+3. First Control Plane
+4. Workstation Kubeconfig
+5. Additional Control Planes
+6. Control-Plane Metrics
+7. Helm
+8. Cilium
+9. Workers
+10. NFS Server
+11. NFS CSI
+12. Argo CD
+13. GitOps Bootstrap
+14. etcd Backup
+15. Kubernetes Platform Validation
+```
+
+The platform configuration is implemented through reusable Ansible roles.
+
+### Workstation Kubeconfig
+
+After the first control plane is bootstrapped, the `kubeconfig` role
+configures access to the Kubernetes cluster from the Ansible control
+workstation.
+
+The corresponding role is:
+
+```text
+ansible/roles/kubeconfig/
+```
+
+This step is executed immediately after the first control plane is
+initialized and before additional control planes join the cluster.
+
+## Common Node Configuration
+
+The `k8s_common` role prepares Kubernetes nodes with the required
+operating-system and container-runtime configuration.
 
 Responsibilities include:
 
@@ -128,14 +317,14 @@ Responsibilities include:
 * Kernel modules
 * Sysctl configuration
 * containerd
-* Kubernetes packages
+* Kubernetes package repository
 * kubeadm
 * kubelet
 * kubectl
 
 This provides a consistent baseline across control-plane and worker nodes.
 
-### Control Plane
+## Control Plane
 
 The first control-plane node initializes the Kubernetes cluster through:
 
@@ -149,7 +338,7 @@ Additional control-plane nodes join through:
 ansible/roles/k8s_control_plane_join/
 ```
 
-The control plane consists of three nodes:
+The control plane consists of:
 
 ```text
 k8s-cp01
@@ -157,9 +346,32 @@ k8s-cp02
 k8s-cp03
 ```
 
-Control-plane changes are executed serially to reduce the risk of disrupting multiple control-plane nodes simultaneously.
+The first control plane establishes the initial Kubernetes control-plane
+state.
 
-### Workers
+Additional control planes join the existing cluster and participate in
+the three-member stacked etcd topology.
+
+Control-plane changes are executed serially to reduce the risk of
+disrupting multiple control-plane nodes simultaneously.
+
+## Control-Plane Metrics
+
+Control-plane metrics configuration is handled through:
+
+```text
+ansible/roles/k8s_control_plane_metrics/
+```
+
+This role configures the metrics-related settings required for the
+observability stack to monitor Kubernetes control-plane components.
+
+Control-plane metrics configuration is performed after the control plane
+has been established.
+
+The role runs serially across the control-plane nodes.
+
+## Workers
 
 Worker nodes are configured through:
 
@@ -174,9 +386,31 @@ k8s-worker01
 k8s-worker02
 ```
 
-Worker joins are performed serially to keep the bootstrap process predictable.
+Worker nodes join the existing Kubernetes cluster after Cilium networking
+is available.
 
-### Cilium Networking
+Worker joins are performed serially to keep the bootstrap process
+predictable and to reduce operational blast radius.
+
+## Helm
+
+Helm provides the package-management layer for Kubernetes platform
+components.
+
+The corresponding Ansible role is:
+
+```text
+ansible/roles/helm/
+```
+
+Helm is installed before components that depend on Helm-based deployment,
+including Cilium and Argo CD.
+
+Helm is primarily used as the package-management mechanism during platform
+bootstrap, while persistent application configuration is managed through
+GitOps.
+
+## Cilium Networking
 
 Cilium provides the Kubernetes networking layer through:
 
@@ -205,11 +439,18 @@ Service CIDR:  10.96.0.0/12
 
 Cilium replaces the traditional kube-proxy datapath.
 
-### Gateway API
+The detailed Cilium architecture and configuration are documented in:
 
-Cilium Gateway API provides the application ingress layer inside the Kubernetes cluster.
+```text
+docs/kubernetes/networking-cilium.md
+```
 
-The architecture is:
+## Gateway API
+
+Cilium Gateway API provides the application ingress layer inside the
+Kubernetes cluster.
+
+The application traffic path is:
 
 ```text
 External Client
@@ -238,23 +479,19 @@ The Gateway API configuration includes:
 * HTTPRoutes for application services
 * ReferenceGrants for cross-namespace backend references
 
-Gateway resources are managed through GitOps.
+Gateway resources are managed through GitOps after the initial platform
+bootstrap.
 
-### Helm
-
-Helm provides the package management layer for Kubernetes applications.
-
-The corresponding Ansible role is:
+The detailed networking configuration is documented in:
 
 ```text
-ansible/roles/helm/
+docs/kubernetes/networking-cilium.md
 ```
 
-Helm is used during bootstrap for platform components such as Cilium and Argo CD, while persistent application configuration is managed through GitOps.
+## Persistent Storage
 
-### Persistent Storage
-
-Persistent storage is provided through NFS and the Kubernetes NFS CSI driver.
+Persistent storage is provided through the NFS server and the Kubernetes
+NFS CSI driver.
 
 The storage architecture is:
 
@@ -272,27 +509,47 @@ PersistentVolume
     |
     v
 PersistentVolumeClaim
+    |
+    v
+Application Pod
 ```
 
-Related Ansible roles:
+The corresponding Ansible roles are:
 
 ```text
 ansible/roles/nfs_server/
+
 ansible/roles/nfs_csi/
 ```
 
-### GitOps
+The NFS server is provisioned as part of the infrastructure and configured
+by Ansible.
 
-Argo CD provides the GitOps control plane:
+The NFS CSI driver integrates the NFS backend with Kubernetes persistent
+storage.
+
+The detailed storage configuration is documented in:
+
+```text
+docs/kubernetes/storage-nfs.md
+```
+
+## Argo CD and GitOps
+
+Argo CD provides the GitOps control plane through:
 
 ```text
 ansible/roles/argocd/
+
 ansible/roles/argocd_bootstrap/
 ```
 
-After Argo CD is established, Kubernetes application configuration is managed from the Git repository.
+Ansible installs and bootstraps Argo CD.
 
-Current GitOps-managed platform areas include:
+After Argo CD is established, persistent Kubernetes application and
+platform configuration is managed from the Git repository.
+
+Current GitOps-managed areas include:
 
 ```text
 Applications
@@ -304,9 +561,37 @@ Applications
     +-- Gateway API resources
 ```
 
-Git remains the source of truth for persistent Kubernetes configuration.
+Git remains the source of truth for persistent GitOps configuration.
 
-### Monitoring
+The detailed Argo CD architecture is documented in:
+
+```text
+docs/gitops/argocd.md
+```
+
+## etcd Backup
+
+The etcd backup automation is configured through:
+
+```text
+ansible/roles/etcd_backup/
+```
+
+The role configures the automated backup mechanism for Kubernetes etcd
+state, including the backup schedule, local backup storage, and off-node
+backup integration where configured.
+
+The backup stage runs after the Kubernetes platform and GitOps bootstrap
+have been established.
+
+Detailed backup and restore procedures are documented in:
+
+```text
+docs/operations/etcd-backup-and-restore.md
+docs/operations/disaster-recovery.md
+```
+
+## Monitoring
 
 The observability stack uses `kube-prometheus-stack`.
 
@@ -318,9 +603,10 @@ The monitoring platform includes:
 * kube-state-metrics
 * node-exporter
 
-The monitoring configuration is managed through Argo CD rather than being maintained independently from Git.
+Monitoring configuration is managed through Argo CD rather than being
+maintained independently from Git.
 
-Grafana is exposed externally through the same Gateway architecture:
+Grafana is exposed through the same application Gateway architecture:
 
 ```text
 Nginx Proxy Manager
@@ -332,40 +618,51 @@ Cilium Gateway
 Grafana Service
 ```
 
-## Ansible Bootstrap Architecture
-
-The single Ansible entry point is:
+The detailed Prometheus and monitoring configuration is documented in:
 
 ```text
-ansible/playbooks/site.yml
+docs/observability/prometheus.md
 ```
 
-The high-level automation sequence is:
+## Kubernetes Platform Validation
+
+The final platform validation stage is handled through:
 
 ```text
-1. Load Balancers
-2. Common Kubernetes Configuration
-3. First Control Plane
-4. Additional Control Planes
-5. Control-Plane Metrics
-6. Helm
-7. Cilium
-8. Workers
-9. NFS Server
-10. NFS CSI
-11. Argo CD
-12. GitOps Bootstrap
+ansible/roles/k8s_validation/
 ```
 
-Ansible roles encapsulate reusable platform configuration, while `site.yml` provides the orchestration layer.
+The role runs against the first control-plane node after the platform
+bootstrap has completed.
 
-Role tags allow individual areas of the platform to be targeted when operational changes are required.
+Validation verifies the reconstructed Kubernetes platform and provides
+an automated post-bootstrap check.
 
-Detailed validation and operational commands are documented separately in:
+The dedicated validation procedures are documented in:
 
 ```text
 docs/operations/validation.md
+docs/validation/kubernetes-cluster-reconstruction.md
 ```
+
+## Bootstrap Responsibilities
+
+The bootstrap architecture separates responsibilities across the platform:
+
+| Layer                 | Tool      | Responsibility                               |
+| --------------------- | --------- | -------------------------------------------- |
+| Proxmox bootstrap     | Ansible   | Prepare Terraform API access and VM template |
+| Infrastructure        | Terraform | Provision Proxmox VMs                        |
+| OS and platform       | Ansible   | Configure nodes and Kubernetes platform      |
+| Kubernetes networking | Cilium    | Provide cluster networking and Gateway API   |
+| Storage               | NFS CSI   | Provide Kubernetes persistent storage        |
+| Application delivery  | Argo CD   | Reconcile Git-managed resources              |
+| Monitoring            | Argo CD   | Deploy and manage monitoring configuration   |
+| Backup                | Ansible   | Configure automated etcd backup              |
+| Validation            | Ansible   | Validate the Kubernetes platform             |
+
+This separation prevents infrastructure provisioning logic from being
+mixed with Kubernetes application configuration.
 
 ## Idempotency
 
@@ -379,10 +676,19 @@ Idempotency is supported through:
 * Kubernetes declarative resources
 * Helm release management
 * GitOps reconciliation
+* Terraform state management
 
-Targeted role execution can be used when only a specific platform component requires reconciliation.
+The Proxmox bootstrap can be re-run when the Terraform provisioning
+prerequisites need to be reconstructed.
 
-Validation procedures for idempotency and Ansible execution are maintained separately from this architecture document.
+The platform playbook can be re-run when Kubernetes nodes or platform
+components require reconciliation.
+
+Targeted role execution can be used when only a specific platform
+component requires reconciliation.
+
+Validation procedures for Ansible execution and idempotency are maintained
+separately from this architecture document.
 
 ## Control Plane Safety
 
@@ -405,7 +711,8 @@ The platform therefore follows these principles:
 * Verify etcd membership and quorum before destructive recovery.
 * Preserve etcd quorum whenever possible.
 
-Ansible control-plane operations use serial execution to reduce the blast radius of configuration changes.
+Ansible control-plane operations use serial execution to reduce the blast
+radius of configuration changes.
 
 ## Recovery Principles
 
@@ -413,6 +720,9 @@ Control-plane recovery follows a dependency-oriented approach:
 
 ```text
 API unavailable
+      |
+      v
+Load Balancer / API Endpoint
       |
       v
 kube-apiserver
@@ -428,34 +738,42 @@ kubelet / static Pods
       |
       v
 Affected component
-      |
-      v
-Kubernetes API
-      |
-      v
-Cluster workloads
-      |
-      v
-Monitoring
 ```
 
-Recovery should begin with state inspection rather than destructive reinitialization.
+Recovery should begin with state inspection rather than destructive
+reinitialization.
 
 Operations such as:
 
 ```text
 kubeadm reset
+
 rm -rf /var/lib/etcd
+
 etcd member remove
+
 etcd member add
 ```
 
-should not be performed until the current cluster and etcd state are understood.
+should not be performed until the current cluster and etcd state are
+understood.
 
-Detailed failure and recovery procedures are maintained in:
+Single control-plane node recovery is documented in:
 
 ```text
-docs/operations/control-plane-failure.md
+docs/disaster-recovery/control-plane-node-recovery.md
+```
+
+etcd state recovery is documented in:
+
+```text
+docs/disaster-recovery/etcd-restore-runbook.md
+```
+
+Full Kubernetes platform reconstruction is documented in:
+
+```text
+docs/disaster-recovery/kubernetes-disaster-recovery-runbook.md
 ```
 
 ## Design Principles
@@ -463,15 +781,19 @@ docs/operations/control-plane-failure.md
 The bootstrap implementation follows these principles:
 
 * Infrastructure provisioning is separated from platform configuration.
+* Proxmox prerequisites are prepared before Terraform provisioning.
 * Reusable logic is encapsulated in Ansible roles.
-* `site.yml` is the single Ansible orchestration entry point.
-* Tags provide targeted role execution.
+* `site.yml` is the main Ansible platform orchestration entry point.
+* Terraform manages infrastructure state.
+* Tags provide targeted Ansible role execution.
 * Control-plane changes are executed serially.
 * Kubernetes networking is provided by Cilium.
 * Cilium provides kube-proxy replacement and Gateway API integration.
 * Persistent storage is provided through NFS CSI.
 * Git remains the source of truth for persistent GitOps configuration.
 * Monitoring is managed through GitOps.
+* Automated etcd backup is part of the platform bootstrap.
+* Automated Kubernetes platform validation is part of the platform bootstrap.
 * Recovery procedures prioritize preserving etcd quorum and cluster state.
 * Operational validation is separated from architecture documentation.
 
@@ -479,6 +801,7 @@ The bootstrap implementation follows these principles:
 
 ```text
 docs/
+
 ├── architecture/
 │   └── kubernetes-ha.md
 │
@@ -499,8 +822,16 @@ docs/
 ├── observability/
 │   └── prometheus.md
 │
-└── operations/
-    ├── startup-shutdown.md
-    ├── validation.md
-    └── control-plane-failure.md
+├── operations/
+│   ├── startup-shutdown.md
+│   ├── validation.md
+│   ├── control-plane-failure.md
+│   ├── disaster-recovery.md
+│   └── etcd-backup-and-restore.md
+│
+└── disaster-recovery/
+    ├── kubernetes-disaster-recovery-runbook.md
+    ├── control-plane-node-recovery.md
+    ├── worker-node-recovery.md
+    └── etcd-restore-runbook.md
 ```

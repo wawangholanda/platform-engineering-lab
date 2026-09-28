@@ -2,39 +2,85 @@
 
 ## Purpose
 
-Validate that the Kubernetes platform can be reconstructed from a reset state using the complete Ansible automation.
+This document records the validation of Kubernetes cluster reconstruction from a reset state using the project automation.
 
-The validation focuses on repeatability of the platform build and confirms that the reconstructed environment returns to a functional state
+The validation focuses on repeatability of the Kubernetes platform build.
+It confirms that the reconstructed environment returns to a functional state
 without requiring manual configuration of individual components.
 
 The validation covers:
 
-* Kubernetes high-availability control plane reconstruction.
-* Worker node reconstruction.
-* HAProxy and Keepalived configuration.
-* Cilium networking and Gateway API.
-* NFS server and NFS CSI integration.
-* Argo CD installation and GitOps bootstrap.
-* Monitoring deployment.
-* etcd backup automation.
-* Repeatability of the complete `site.yml` workflow.
+* Kubernetes high-availability control plane reconstruction
+* Worker node reconstruction
+* HAProxy and Keepalived configuration
+* Cilium networking and Gateway API
+* NFS server and NFS CSI integration
+* Argo CD installation and GitOps bootstrap
+* Monitoring deployment
+* etcd backup automation
+* Repeatability of the complete `site.yml` workflow
 
----
+This document validates Kubernetes platform reconstruction.
+
+Full infrastructure reconstruction is covered separately by the Proxmox Bootstrap and Terraform workflow.
+
+## Reconstruction Architecture
+
+The complete reconstruction workflow is:
+
+```text
+Proxmox Bootstrap
+        |
+        v
+Terraform
+        |
+        v
+Proxmox VMs
+        |
+        v
+Ansible
+        |
+        v
+Kubernetes
+        |
+        +-- HAProxy + Keepalived
+        +-- Control Plane
+        +-- Workers
+        +-- Cilium
+        +-- NFS / NFS CSI
+        +-- Argo CD
+        +-- Monitoring
+        |
+        v
+GitOps
+```
+
+The Kubernetes reconstruction validation begins after the infrastructure required to host the cluster is available.
+
+For complete infrastructure reconstruction, see:
+
+```text
+docs/disaster-recovery/kubernetes-disaster-recovery-runbook.md
+```
 
 ## Environment
 
-| Component      | Value                 |
-| -------------- | --------------------- |
-| Proxmox VE     | 9.2.0                 |
-| Host OS        | Debian GNU/Linux 13   |
-| Kubernetes     | v1.34.10              |
-| Kubernetes OS  | Ubuntu 24.04.4 LTS    |
-| CNI            | Cilium 1.20.0         |
-| GitOps         | Argo CD               |
-| Monitoring     | kube-prometheus-stack |
-| Storage        | NFS + NFS CSI         |
-| Load Balancer  | HAProxy + Keepalived  |
-| Kubernetes VIP | `192.168.1.30:6443`   |
+| Component         | Value                 |
+| ----------------- | --------------------- |
+| Proxmox VE        | 9.2.18                |
+| Host OS           | Debian GNU/Linux 13   |
+| Kubernetes        | v1.34.11              |
+| Kubernetes OS     | Ubuntu 24.04.5 LTS    |
+| Container Runtime | containerd 2.2.1      |
+| CNI               | Cilium 1.20.0         |
+| Helm              | 3.21.4                |
+| GitOps            | Argo CD               |
+| Monitoring        | kube-prometheus-stack |
+| Storage           | NFS + NFS CSI         |
+| Load Balancer     | HAProxy + Keepalived  |
+| Kubernetes VIP    | `192.168.1.30:6443`   |
+| Pod CIDR          | `10.0.0.0/16`         |
+| Service CIDR      | `10.96.0.0/12`        |
 
 ### Kubernetes Nodes
 
@@ -49,8 +95,6 @@ The validation covers:
 | k8s-lb02     | `192.168.1.26` | load balancer |
 | k8s-nfs01    | `192.168.1.27` | NFS server    |
 
----
-
 ## Validation Procedure
 
 ## 1. Verify Repository State
@@ -61,7 +105,7 @@ Before reconstruction, verify that the repository has no uncommitted changes:
 git status --short
 ```
 
-Expected result:
+Expected:
 
 ```text
 (no output)
@@ -76,9 +120,55 @@ git log --oneline -3
 
 The repository should contain the current reconstruction automation and Kubernetes manifests.
 
----
+The repository state must be treated as the source of truth for the reconstruction test.
 
-## 2. Run the Reconstruction Safety Gate
+## 2. Verify Infrastructure Prerequisites
+
+Before resetting Kubernetes, verify that the required Proxmox infrastructure is available.
+
+For an existing environment:
+
+```bash
+qm list
+```
+
+The required infrastructure includes:
+
+* Load balancers
+* Control-plane nodes
+* Worker nodes
+* NFS server
+
+For a full infrastructure reconstruction, the prerequisite workflow is:
+
+```text
+Proxmox Bootstrap
+        |
+        v
+Terraform
+        |
+        v
+Proxmox VMs
+        |
+        v
+Ansible
+```
+
+The Proxmox bootstrap automation is:
+
+```text
+ansible/playbooks/proxmox-bootstrap.yml
+```
+
+The Terraform environment is:
+
+```text
+environments/dev/proxmox/
+```
+
+The Kubernetes reconstruction validation should not be considered a replacement for full infrastructure reconstruction testing.
+
+## 3. Run the Reconstruction Safety Gate
 
 Execute:
 
@@ -94,7 +184,9 @@ Expected result:
 
 ```text
 Existing PVs: []
+
 Existing PVCs: []
+
 No PV/PVC resources detected. Reconstruction safety gate passed.
 ```
 
@@ -104,14 +196,13 @@ Expected assertion:
 
 ```text
 Kubernetes reset is disabled.
+
 Set k8s_reset_confirm=true explicitly to allow destructive reset.
 ```
 
 This confirms that destructive reconstruction requires explicit authorization.
 
----
-
-## 3. Perform Controlled Kubernetes Reset
+## 4. Perform Controlled Kubernetes Reset
 
 After confirming that reconstruction is safe, execute:
 
@@ -139,11 +230,13 @@ failed=0
 unreachable=0
 ```
 
----
+The reset operation is destructive to the Kubernetes cluster state.
 
-## Initial Reconstruction
+Persistent application storage must be verified before authorization.
 
-After the Kubernetes nodes have been reset, run the complete automation:
+## 5. Initial Reconstruction
+
+After the Kubernetes nodes have been reset, run the complete platform automation:
 
 ```bash
 ansible-playbook \
@@ -153,14 +246,49 @@ ansible-playbook \
 
 The complete playbook reconstructs the platform without requiring individual roles or tags to be executed manually.
 
----
+The automation is responsible for rebuilding the configured platform layers, including:
 
-## Initial GitOps Issue
+```text
+Load Balancers
+      |
+      v
+Kubernetes Control Plane
+      |
+      v
+Additional Control Plane Nodes
+      |
+      v
+Control Plane Metrics
+      |
+      v
+Helm
+      |
+      v
+Cilium
+      |
+      v
+Workers
+      |
+      v
+NFS / NFS CSI
+      |
+      v
+Argo CD
+      |
+      v
+GitOps / Monitoring
+      |
+      v
+etcd Backup
+```
 
-During the first reconstruction, the workflow reached the Argo CD bootstrap phase but `dev-gateway` initially reported:
+## 6. Initial GitOps Finding
+
+During the initial reconstruction validation, the workflow reached the Argo CD bootstrap phase but `dev-gateway` initially reported:
 
 ```text
 SYNC STATUS   HEALTH STATUS
+
 Synced        Degraded
 ```
 
@@ -179,7 +307,7 @@ reason=BackendNotFound
 message=Service "nginx" not found
 ```
 
-The Service itself existed in the `demo` namespace:
+The Service existed in the `demo` namespace:
 
 ```text
 demo/nginx
@@ -216,59 +344,43 @@ spec:
       name: nginx
 ```
 
----
+The finding demonstrated that Gateway API validation must include both route configuration and cross-namespace authorization.
 
-## Git Revision Mismatch
+## 7. Git Revision Finding
 
-The repository already contained the required `ReferenceGrant`, but the remote `main` branch used by Argo CD was still pointing to an older
-revision.
+The repository already contained the required `ReferenceGrant`, but during the initial reconstruction test
+the remote `main` branch used by Argo CD was still pointing to an older revision.
 
-Local repository history:
-
-```text
-c0d1755 fix Kubernetes reconstruction and Argo CD Gateway health
-```
-
-Remote `main` initially pointed to:
-
-```text
-d9c0b8b docs: add Kubernetes disaster recovery runbook
-```
-
-The updated commits were pushed to the remote repository:
+The updated repository revision was subsequently pushed to the remote repository:
 
 ```bash
 git push origin main
 ```
 
-The remote branch then pointed to:
-
-```text
-270b13ada3363a781fa6bcb6ba55b6394f96b015
-```
-
-Argo CD subsequently detected the new revision.
+Argo CD then detected the updated revision and reconciled the application.
 
 Validation showed:
 
 ```text
 dev-gateway
-revision: 270b13a...
-sync: Synced
+
+sync:   Synced
 health: Healthy
 ```
 
-The required resource was then present:
+The required resource was present:
 
 ```text
 demo/allow-gateway-backend
 ```
 
-The original reconstruction completed successfully.
+The original reconstruction subsequently completed successfully.
 
----
+This finding is retained as part of the reconstruction test history.
+The GitOps source of truth must be synchronized with the revision expected by Argo CD
+before reconstruction validation begins.
 
-## Repeatability Validation
+## 8. Repeatability Validation
 
 The reconstruction process was executed again from a clean Kubernetes reset.
 
@@ -301,11 +413,11 @@ dev-monitoring  Synced + Healthy
 
 The playbook continued through the etcd backup configuration stage.
 
----
+This second reconstruction demonstrated that the complete `site.yml` workflow could rebuild the platform consistently after a clean Kubernetes reset.
 
-## Final Validation
+## 9. Final Kubernetes Validation
 
-## Kubernetes Node Validation
+### Kubernetes Node Validation
 
 Command:
 
@@ -313,22 +425,39 @@ Command:
 kubectl get nodes
 ```
 
-Result:
+Validated result:
 
 ```text
 NAME           STATUS   ROLES           VERSION
-k8s-cp01       Ready    control-plane   v1.34.10
-k8s-cp02       Ready    control-plane   v1.34.10
-k8s-cp03       Ready    control-plane   v1.34.10
-k8s-worker01   Ready    <none>          v1.34.10
-k8s-worker02   Ready    <none>          v1.34.10
+k8s-cp01       Ready    control-plane   v1.34.11
+k8s-cp02       Ready    control-plane   v1.34.11
+k8s-cp03       Ready    control-plane   v1.34.11
+k8s-worker01   Ready    <none>          v1.34.11
+k8s-worker02   Ready    <none>          v1.34.11
 ```
 
 All five Kubernetes nodes were `Ready`.
 
----
+### Kubernetes Workloads
 
-## Argo CD Applications
+Command:
+
+```bash
+kubectl get pods -A
+```
+
+Core platform components were expected to be operational after reconstruction.
+
+The validation included:
+
+* Kubernetes system workloads
+* Cilium
+* Gateway API
+* NFS CSI
+* Argo CD
+* Monitoring
+
+### Argo CD Applications
 
 Command:
 
@@ -336,7 +465,7 @@ Command:
 kubectl get applications -n argocd
 ```
 
-Result:
+Validated result:
 
 ```text
 NAME             SYNC STATUS   HEALTH STATUS
@@ -347,9 +476,178 @@ dev-nginx        Synced        Healthy
 
 All GitOps-managed applications were synchronized and healthy.
 
----
+## 10. Gateway Validation
 
-## Final Automation Result
+Validate the Gateway:
+
+```bash
+kubectl get gateway -A
+```
+
+The primary Gateway is:
+
+```text
+nginx-gateway
+```
+
+The expected LoadBalancer address is:
+
+```text
+192.168.1.240
+```
+
+Validate HTTPRoutes:
+
+```bash
+kubectl get httproute -A
+```
+
+Expected application routes include:
+
+```text
+nginx-route
+argocd-route
+grafana-route
+```
+
+Validate ReferenceGrants:
+
+```bash
+kubectl get referencegrant -A
+```
+
+Cross-namespace backend references must resolve successfully.
+
+## 11. Storage Validation
+
+Validate storage resources:
+
+```bash
+kubectl get storageclass
+kubectl get pv
+kubectl get pvc -A
+```
+
+Application PVCs that require persistent storage should report:
+
+```text
+Bound
+```
+
+The NFS server is:
+
+```text
+k8s-nfs01
+192.168.1.27
+```
+
+Storage validation confirms that Kubernetes reconstruction did not require manual recreation of the configured NFS storage integration.
+
+Application data itself remains separate from Kubernetes control-plane reconstruction and must be validated independently.
+
+## 12. Cilium Validation
+
+Validate Cilium:
+
+```bash
+kubectl -n kube-system get pods \
+  -l k8s-app=cilium \
+  -o wide
+```
+
+Cilium should be operational across the Kubernetes nodes.
+
+Validate the GatewayClass:
+
+```bash
+kubectl get gatewayclass
+```
+
+The Cilium GatewayClass should report an accepted status.
+
+Validate Cilium load-balancer resources:
+
+```bash
+kubectl get ciliuml2announcementpolicy -A
+kubectl get ciliumloadbalancerippools -A
+```
+
+## 13. Monitoring Validation
+
+Validate monitoring workloads:
+
+```bash
+kubectl get pods -n monitoring
+```
+
+Expected monitoring components include:
+
+* Prometheus
+* Grafana
+* Alertmanager
+* kube-state-metrics
+* node-exporter
+* Prometheus Operator components
+
+Validate Prometheus readiness:
+
+```bash
+curl -s http://localhost:9091/-/ready
+```
+
+Expected:
+
+```text
+Prometheus Server is Ready.
+```
+
+Validate unhealthy targets:
+
+```bash
+curl -s http://localhost:9091/api/v1/targets |
+  jq '[.data.activeTargets[] | select(.health != "up")] | length'
+```
+
+Expected:
+
+```text
+0
+```
+
+## 14. etcd Backup Validation
+
+The reconstruction workflow also configures automated etcd backup.
+
+Verify the backup timer:
+
+```bash
+systemctl is-enabled etcd-backup.timer
+systemctl is-active etcd-backup.timer
+```
+
+Expected:
+
+```text
+enabled
+active
+```
+
+Verify the local backup directory:
+
+```bash
+ls -lah /var/backups/etcd
+```
+
+Verify the backup configuration and validation separately using:
+
+```text
+docs/operations/etcd-backup-and-restore.md
+```
+
+The existence of the backup automation after reconstruction confirms that it is included in the platform automation
+rather than being a manually configured component.
+
+## 15. Final Automation Result
 
 The reconstruction workflow completed with:
 
@@ -374,56 +672,129 @@ The validated platform components include:
 * Prometheus/Grafana monitoring
 * etcd backup automation
 
----
-
 ## Key Findings
 
 The validation identified an important GitOps dependency during the initial reconstruction.
 
 A cross-namespace `HTTPRoute` backend requires a corresponding `ReferenceGrant` in the backend namespace.
 
-The failure was initially observed as:
+The failure was observed as:
 
 ```text
 HTTPRoute
-    ↓
+    |
+    v
 ResolvedRefs=False
-    ↓
+    |
+    v
 BackendNotFound
-    ↓
+    |
+    v
 Argo CD Application = Degraded
 ```
 
-After the required resource was committed to the Git repository and the updated revision reached the remote `main` branch:
+After the required resource was committed to Git and the updated revision became available to Argo CD:
 
 ```text
 ReferenceGrant
-    ↓
+    |
+    v
 ResolvedRefs=True
-    ↓
+    |
+    v
 Gateway resources healthy
-    ↓
+    |
+    v
 Argo CD Application = Healthy
 ```
 
-This demonstrated the value of validating the complete GitOps workflow rather than validating only individual Kubernetes components.
+This demonstrated the importance of validating the complete GitOps workflow rather than validating only individual Kubernetes components.
 
----
+A second important finding is that reconstruction depends on the Git revision consumed by Argo CD.
+The repository state and the remote revision used by Argo CD must be aligned
+before declaring the reconstruction test complete.
 
 ## Validation Result
 
-## Status: PASS
+### Status: PASS
 
 The Kubernetes platform was successfully reconstructed from a reset state using the complete Ansible automation.
 
-The reconstruction process was successfully repeated, demonstrating that the automation is capable of rebuilding the platform consistently.
+The reconstruction process was successfully repeated, demonstrating that the automation is capable of rebuilding the Kubernetes platform consistently.
 
-Final platform state:
+Final validated state:
 
 ```text
 5/5 Kubernetes nodes       Ready
 3/3 Argo CD applications   Synced + Healthy
 Ansible execution          failed=0
+Ansible unreachable        0
 ```
 
 The reconstruction workflow is therefore considered **validated and repeatable**.
+
+## Scope and Limitations
+
+This validation demonstrates repeatability of the Kubernetes platform reconstruction workflow.
+
+It does not by itself constitute a complete disaster recovery test.
+
+The following areas are validated separately:
+
+* Full Proxmox infrastructure reconstruction
+* Terraform infrastructure recreation
+* Persistent application data recovery
+* Critical secret recovery
+* Measured RTO
+* Measured end-to-end DR
+* Destructive failure scenarios
+
+The complete disaster recovery procedure is documented in:
+
+```text
+docs/disaster-recovery/kubernetes-disaster-recovery-runbook.md
+```
+
+The overall DR strategy is documented in:
+
+```text
+docs/operations/disaster-recovery.md
+```
+
+## Related Documentation
+
+```text
+docs/
+├── architecture/
+│   └── kubernetes-ha.md
+│
+├── ansible/
+│   └── architecture.md
+│
+├── terraform/
+│   └── architecture.md
+│
+├── kubernetes/
+│   ├── cluster-bootstrap.md
+│   ├── networking-cilium.md
+│   └── storage-nfs.md
+│
+├── gitops/
+│   └── argocd.md
+│
+├── observability/
+│   └── prometheus.md
+│
+├── disaster-recovery/
+│   ├── control-plane-node-recovery.md
+│   ├── etcd-restore-runbook.md
+│   ├── kubernetes-disaster-recovery-runbook.md
+│   └── worker-node-recovery.md
+│
+└── operations/
+    ├── control-plane-failure.md
+    ├── disaster-recovery.md
+    ├── etcd-backup-and-restore.md
+    ├── startup-shutdown.md
+    └── validation.md
+```
