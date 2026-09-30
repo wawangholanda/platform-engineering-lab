@@ -513,43 +513,47 @@ The project continues to evolve as additional platform engineering capabilities 
 
 ### Completed
 
-* Infrastructure provisioning with Terraform + Proxmox
-* Reusable Terraform VM module
-* Idempotent Ansible automation
-* Highly available Kubernetes
-* HAProxy + Keepalived
-* Cilium networking and Gateway API
-* Persistent storage with NFS / NFS CSI
-* GitOps with Argo CD
-* Prometheus, Grafana, and Alertmanager
-* Platform validation
-* Worker and control-plane failure testing
-* etcd backup and restore testing
-* Disaster recovery procedures
-* Kubernetes cluster reconstruction validation
+* [x] Infrastructure provisioning with Terraform + Proxmox
+* [x] Reusable Terraform VM module
+* [x] Idempotent Ansible automation
+* [x] Highly available Kubernetes
+* [x] HAProxy + Keepalived
+* [x] Cilium networking and Gateway API
+* [x] Persistent storage with NFS / NFS CSI
+* [x] GitOps with Argo CD
+* [x] Prometheus, Grafana, and Alertmanager
+* [x] Platform validation
+* [x] Worker and control-plane failure testing
+* [x] etcd backup and restore testing
+* [x] Disaster recovery procedures
+* [x] Kubernetes cluster reconstruction validation
 
 ### In Progress
 
-* Infrastructure failure alerting
-* Alert notification integration
-* Production-oriented Grafana dashboards
-* Kubernetes security baseline
-* Cilium NetworkPolicy
-* RBAC hardening
-* Secrets management
-* Image vulnerability scanning
-* Automated failure scenarios
+* [ ] Infrastructure failure alerting
+* [ ] Alert notification integration
+* [ ] Production-oriented Grafana dashboards
+* [ ] Kubernetes security baseline
+* [ ] Cilium NetworkPolicy
+* [ ] RBAC hardening
+* [ ] Secrets management
+* [ ] Image vulnerability scanning
+* [ ] Automated failure scenarios
 
 ### Planned
 
-* GitHub Actions / CI/CD automation
-* Terraform CI/CD
-* Ansible CI/CD
-* Automated infrastructure testing
-* AWS
-* Google Cloud
-* Alibaba Cloud
-* Additional infrastructure platforms
+* [ ] Tailscale private access
+* [ ] HA Tailscale access through lb01/lb02
+* [ ] Private Grafana access validation
+* [ ] Private Argo CD access validation
+* [ ] GitHub Actions / CI/CD automation
+* [ ] Terraform CI/CD
+* [ ] Ansible CI/CD
+* [ ] Automated infrastructure testing
+* [ ] AWS
+* [ ] Google Cloud
+* [ ] Alibaba Cloud
+* [ ] Additional infrastructure platforms
 
 See the [`docs/`](docs/) directory for implementation-level details and operational procedures.
 
