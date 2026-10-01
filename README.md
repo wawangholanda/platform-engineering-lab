@@ -660,7 +660,7 @@ Scan the QRIS code to support the project.
 
 International supporters can use Ko-fi:
 
-> Ko-fi link will be added here.
+[☕ Support via Ko-fi](https://ko-fi.com/wawangholanda)
 
 Thank you for supporting open-source learning and continued development of the project.
 
