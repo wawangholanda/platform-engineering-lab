@@ -44,7 +44,7 @@ repos:
     hooks:
       - id: ansible-lint
         name: ansible-lint
-        entry: /usr/bin/ansible-lint
+        entry: ansible-lint
         language: system
         files: ^ansible/
 

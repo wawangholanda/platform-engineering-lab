@@ -288,13 +288,89 @@ platform-engineering-lab/
 ├── ansible/
 │   ├── inventory/
 │   ├── roles/
-│   └── playbooks/
+│   ├── playbooks/
+│   └── requirements.yml
 ├── kubernetes/
 ├── docs/
 └── .github/
 ```
 
-### 3. Prepare Terraform
+### 3. Prepare the Workstation
+
+The repository includes a dedicated Ansible playbook for preparing a Linux workstation used to operate the platform:
+
+```text
+ansible/playbooks/workstation.yml
+```
+
+The workstation playbook currently supports **Ubuntu and Kali Linux** and installs the base packages required by the project.
+
+It also manages pinned versions of the main Platform Engineering CLI tools:
+
+* Terraform
+* kubectl
+* Helm
+
+The playbook uses SHA-256 checksums when downloading pinned binaries and is designed to be idempotent.
+
+Install the required Ansible collections first:
+
+```bash
+ansible-galaxy collection install -r ansible/requirements.yml
+```
+
+The repository pins the collection versions used by the project:
+
+```yaml
+collections:
+  - name: kubernetes.core
+    version: 6.4.0
+  - name: community.general
+    version: 13.0.1
+  - name: ansible.posix
+    version: 2.2.0
+```
+
+Validate the workstation playbook:
+
+```bash
+ansible-playbook \
+  ansible/playbooks/workstation.yml \
+  --syntax-check
+```
+
+Run Ansible in check mode before applying changes:
+
+```bash
+ansible-playbook \
+  ansible/playbooks/workstation.yml \
+  --check \
+  --ask-become-pass
+```
+
+Apply the workstation configuration:
+
+```bash
+ansible-playbook \
+  ansible/playbooks/workstation.yml \
+  --ask-become-pass
+```
+
+The workstation automation installs the pinned tools under `/usr/local/bin`.
+
+Verify the installed versions:
+
+```bash
+/usr/local/bin/terraform version
+/usr/local/bin/kubectl version --client
+/usr/local/bin/helm version --short
+ansible --version
+```
+
+The workstation playbook is separate from the Kubernetes platform playbook so that the development/operations workstation can be prepared
+independently from the target infrastructure.
+
+### 4. Prepare Terraform
 
 The Proxmox environment is located at:
 
@@ -331,7 +407,7 @@ terraform plan
 
 Detailed Terraform procedures are documented under [`docs/terraform/`](docs/terraform/).
 
-### 4. Provision Infrastructure
+### 5. Provision Infrastructure
 
 When the Terraform plan has been reviewed:
 
@@ -347,7 +423,7 @@ Return to the repository root:
 cd ../../..
 ```
 
-### 5. Prepare Ansible
+### 6. Prepare Ansible
 
 The development inventory is:
 
@@ -402,7 +478,7 @@ ansible-playbook \
 
 For a detailed Ansible workflow, see [`docs/ansible/`](docs/ansible/).
 
-### 6. Configure the Kubernetes Platform
+### 7. Configure the Kubernetes Platform
 
 Run the main Ansible platform playbook after the inventory and infrastructure have been configured:
 
@@ -416,7 +492,7 @@ The playbook is designed to configure the Kubernetes platform through reusable A
 
 Control-plane operations that can affect cluster availability are executed serially where appropriate.
 
-### 7. Enable GitOps
+### 8. Enable GitOps
 
 Argo CD is installed and bootstrapped by the Ansible platform workflow.
 
@@ -424,7 +500,7 @@ After GitOps is configured, Kubernetes resources can be managed from Git rather 
 
 Detailed GitOps procedures are available under [`docs/gitops/`](docs/gitops/).
 
-### 8. Validate the Platform
+### 9. Validate the Platform
 
 The platform includes automated validation for areas such as:
 
@@ -462,7 +538,8 @@ platform-engineering-lab/
 ├── ansible/
 │   ├── inventory/               # Environment inventories
 │   ├── roles/                   # Reusable Ansible roles
-│   └── playbooks/               # Platform playbooks
+│   ├── playbooks/               # Platform and workstation playbooks
+│   └── requirements.yml         # Pinned Ansible collections
 │
 ├── kubernetes/
 │   ├── storage/                 # Kubernetes storage resources
@@ -504,6 +581,7 @@ The core platform implementation is operational and includes:
 * etcd backup
 * Disaster recovery procedures
 * Cluster reconstruction validation
+* Reproducible workstation preparation
 
 The project continues to evolve as additional platform engineering capabilities are implemented.
 
@@ -516,6 +594,8 @@ The project continues to evolve as additional platform engineering capabilities 
 * [x] Infrastructure provisioning with Terraform + Proxmox
 * [x] Reusable Terraform VM module
 * [x] Idempotent Ansible automation
+* [x] Reproducible workstation preparation with Ansible
+* [x] Pinned Terraform, kubectl, and Helm tooling
 * [x] Highly available Kubernetes
 * [x] HAProxy + Keepalived
 * [x] Cilium networking and Gateway API

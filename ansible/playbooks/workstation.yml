@@ -1,0 +1,166 @@
+---
+- name: Prepare platform engineering workstation
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  vars:
+    terraform_version: "1.15.8"
+    terraform_arch: "amd64"
+    terraform_url: "https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_{{ terraform_arch }}.zip"
+    terraform_sha256: "d25ce7b6902013ad905db3d2eab0be4cd905887fe88b81a6171b8d5503c31f3d"
+
+    kubectl_version: "1.34.11"
+    kubectl_arch: "amd64"
+    kubectl_url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/{{ kubectl_arch }}/kubectl"
+    kubectl_sha256: "8efbb9435132a190920eb65a47a8c1ecf755ad85ab57a600c9bedbab460bb7a8"
+
+    helm_version: "3.21.4"
+    helm_arch: "amd64"
+    helm_url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-{{ helm_arch }}.tar.gz"
+    helm_sha256: "61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a14"
+
+
+  tasks:
+
+    - name: Validate supported workstation OS
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution in ['Ubuntu', 'Kali']
+        fail_msg: >-
+          Unsupported workstation OS: {{ ansible_facts.distribution }}
+          {{ ansible_facts.distribution_version }}.
+          Supported operating systems are Ubuntu and Kali Linux.
+
+    - name: Display workstation information
+      ansible.builtin.debug:
+        msg:
+          - "OS: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}"
+          - "Architecture: {{ ansible_facts.architecture }}"
+          - "Python: {{ ansible_facts.python_version }}"
+
+    - name: Install workstation base packages
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - jq
+          - openssh-client
+          - unzip
+        state: present
+        update_cache: true
+
+    - name: Check installed Terraform version
+      ansible.builtin.command:
+        cmd: /usr/local/bin/terraform version
+      register: terraform_version_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Set installed Terraform version
+      ansible.builtin.set_fact:
+        terraform_installed_version: >-
+          {{ terraform_version_check.stdout_lines[0]
+             | default('')
+             | regex_replace('^Terraform v', '') }}
+
+    - name: Download Terraform
+      ansible.builtin.get_url:
+        url: "{{ terraform_url }}"
+        dest: "/tmp/terraform_{{ terraform_version }}.zip"
+        checksum: "sha256:{{ terraform_sha256 }}"
+        mode: "0644"
+      when: terraform_installed_version != terraform_version
+
+    - name: Install Terraform binary
+      ansible.builtin.unarchive:
+        src: "/tmp/terraform_{{ terraform_version }}.zip"
+        dest: "/usr/local/bin"
+        remote_src: true
+        mode: "0755"
+      when: terraform_installed_version != terraform_version
+
+    - name: Check installed kubectl version
+      ansible.builtin.command:
+        cmd: /usr/local/bin/kubectl version --client -o yaml
+      register: kubectl_version_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+
+    - name: Set installed kubectl version
+      ansible.builtin.set_fact:
+        kubectl_installed_version: >-
+          {{ kubectl_version_check.stdout
+             | regex_findall('gitVersion: v([0-9.]+)')
+             | first
+             | default('') }}
+
+    - name: Download kubectl
+      ansible.builtin.get_url:
+        url: "{{ kubectl_url }}"
+        dest: "/tmp/kubectl_{{ kubectl_version }}"
+        checksum: "sha256:{{ kubectl_sha256 }}"
+        mode: "0755"
+      when: kubectl_installed_version != kubectl_version
+
+    - name: Install kubectl binary
+      ansible.builtin.copy:
+        src: "/tmp/kubectl_{{ kubectl_version }}"
+        dest: "/usr/local/bin/kubectl"
+        remote_src: true
+        mode: "0755"
+      when:
+        - kubectl_installed_version != kubectl_version
+        - not ansible_check_mode
+
+    - name: Check whether pinned Helm binary exists
+      ansible.builtin.stat:
+        path: /usr/local/bin/helm
+      register: helm_binary
+
+    - name: Check installed Helm version
+      ansible.builtin.command:
+        cmd: /usr/local/bin/helm version --short
+      register: helm_version_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: helm_binary.stat.exists
+
+    - name: Set installed Helm version
+      ansible.builtin.set_fact:
+        helm_installed_version: >-
+          {{ helm_version_check.stdout
+             | default('')
+             | trim
+             | regex_replace('^v', '') }}
+
+    - name: Download Helm
+      ansible.builtin.get_url:
+        url: "{{ helm_url }}"
+        dest: "/tmp/helm_{{ helm_version }}.tar.gz"
+        checksum: "sha256:{{ helm_sha256 }}"
+        mode: "0644"
+      when: helm_installed_version != helm_version
+
+    - name: Extract Helm
+      ansible.builtin.unarchive:
+        src: "/tmp/helm_{{ helm_version }}.tar.gz"
+        dest: "/tmp"
+        remote_src: true
+      when:
+        - helm_installed_version != helm_version
+        - not ansible_check_mode
+
+    - name: Install Helm binary
+      ansible.builtin.copy:
+        src: "/tmp/linux-amd64/helm"
+        dest: "/usr/local/bin/helm"
+        remote_src: true
+        mode: "0755"
+      when:
+        - helm_installed_version != helm_version
+        - not ansible_check_mode
