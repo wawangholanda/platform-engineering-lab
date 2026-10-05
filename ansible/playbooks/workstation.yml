@@ -21,6 +21,12 @@
     helm_url: "https://get.helm.sh/helm-v{{ helm_version }}-linux-{{ helm_arch }}.tar.gz"
     helm_sha256: "61f88ab166748cb19604d7884cb100ae9ccb13804ddeb98e08af167eacbb6a14"
 
+    kubeseal_version: "0.40.0"
+    kubeseal_arch: "amd64"
+    kubeseal_url_base: "https://github.com/bitnami-labs/sealed-secrets/releases/download/v{{ kubeseal_version }}/"
+    kubeseal_filename: "kubeseal-{{ kubeseal_version }}-linux-{{ kubeseal_arch }}.tar.gz"
+    kubeseal_sha256: "9314c35916646e9d59c8f06b1314574b4e79c4d76f079433607ed7b697bb5eb7"
+
 
   tasks:
 
@@ -163,4 +169,63 @@
         mode: "0755"
       when:
         - helm_installed_version != helm_version
+        - not ansible_check_mode
+
+    - name: Check whether pinned kubeseal binary exists
+      ansible.builtin.stat:
+        path: /usr/local/bin/kubeseal
+      register: kubeseal_binary
+
+    - name: Check installed kubeseal version
+      ansible.builtin.command:
+        cmd: /usr/local/bin/kubeseal --version
+      register: kubeseal_version_check
+      changed_when: false
+      failed_when: false
+      check_mode: false
+      when: kubeseal_binary.stat.exists
+
+    - name: Set installed kubeseal version
+      ansible.builtin.set_fact:
+        kubeseal_installed_version: >-
+          {{ kubeseal_version_check.stdout
+             | default('')
+             | regex_findall('([0-9]+\\.[0-9]+\\.[0-9]+)')
+             | first
+             | default('') }}
+
+    - name: Download kubeseal
+      ansible.builtin.get_url:
+        url: "{{ kubeseal_url_base }}{{ kubeseal_filename }}"
+        dest: "/tmp/kubeseal_{{ kubeseal_version }}.tar.gz"
+        checksum: "sha256:{{ kubeseal_sha256 }}"
+        mode: "0644"
+      when: kubeseal_installed_version != kubeseal_version
+
+    - name: Create kubeseal extraction directory
+      ansible.builtin.file:
+        path: "/tmp/kubeseal_{{ kubeseal_version }}"
+        state: directory
+        mode: "0755"
+      when:
+        - kubeseal_installed_version != kubeseal_version
+        - not ansible_check_mode
+
+    - name: Extract kubeseal
+      ansible.builtin.unarchive:
+        src: "/tmp/kubeseal_{{ kubeseal_version }}.tar.gz"
+        dest: "/tmp/kubeseal_{{ kubeseal_version }}"
+        remote_src: true
+      when:
+        - kubeseal_installed_version != kubeseal_version
+        - not ansible_check_mode
+
+    - name: Install kubeseal binary
+      ansible.builtin.copy:
+        src: "/tmp/kubeseal_{{ kubeseal_version }}/kubeseal"
+        dest: "/usr/local/bin/kubeseal"
+        remote_src: true
+        mode: "0755"
+      when:
+        - kubeseal_installed_version != kubeseal_version
         - not ansible_check_mode
