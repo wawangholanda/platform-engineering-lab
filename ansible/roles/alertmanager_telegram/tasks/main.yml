@@ -1,0 +1,54 @@
+---
+# =========================================================
+# Alertmanager Telegram Notifications
+# =========================================================
+
+- name: Read Telegram credentials from environment
+  ansible.builtin.set_fact:
+    alertmanager_telegram_bot_token: "{{ lookup('ansible.builtin.env', 'TELEGRAM_BOT_TOKEN') }}"
+    alertmanager_telegram_chat_id: "{{ lookup('ansible.builtin.env', 'TELEGRAM_CHAT_ID') }}"
+  no_log: true
+
+- name: Determine whether Telegram notifications are enabled
+  ansible.builtin.set_fact:
+    alertmanager_telegram_enabled: >-
+      {{
+        (alertmanager_telegram_bot_token | default('') | trim | length > 0)
+        and
+        (alertmanager_telegram_chat_id | default('') | trim | length > 0)
+      }}
+
+- name: Display Telegram notification status
+  ansible.builtin.debug:
+    msg: >-
+      Telegram Alertmanager notifications are
+      {{ 'enabled' if alertmanager_telegram_enabled else 'disabled' }}.
+
+- name: Skip Telegram configuration when credentials are not provided
+  ansible.builtin.debug:
+    msg: "Skipping Telegram Alertmanager configuration because credentials are not provided."
+  when: not alertmanager_telegram_enabled
+
+
+- name: Create Alertmanager Telegram Secret
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: alertmanager-telegram
+        namespace: monitoring
+      type: Opaque
+      stringData:
+        bot-token: "{{ alertmanager_telegram_bot_token }}"
+  no_log: true
+  when: alertmanager_telegram_enabled
+
+- name: Apply Alertmanager Telegram configuration
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    template: alertmanager-config.yaml.j2
+  when: alertmanager_telegram_enabled

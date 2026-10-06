@@ -166,6 +166,19 @@
 
 
 # =========================================================
+# Configure Alertmanager Telegram notifications
+# =========================================================
+
+- name: Configure Alertmanager Telegram notifications
+  hosts: control_plane[0]
+  become: false
+  roles:
+    - role: alertmanager_telegram
+      tags:
+        - alertmanager_telegram
+
+
+# =========================================================
 # Backup Kubernetes etcd
 # =========================================================
 

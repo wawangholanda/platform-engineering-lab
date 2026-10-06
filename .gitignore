@@ -113,6 +113,7 @@ known_hosts
 
 .env
 .env.*
+!.env.example
 *.env
 
 
