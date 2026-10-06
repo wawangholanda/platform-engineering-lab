@@ -1,0 +1,4 @@
+[allowlist]
+  paths = [
+    '''environments/dev/kubernetes/monitoring/alertmanager-telegram-sealedsecret\.yaml'''
+  ]

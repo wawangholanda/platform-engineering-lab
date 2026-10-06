@@ -136,6 +136,8 @@ The current Proxmox environment provides a highly available Kubernetes platform 
 * Prometheus
 * Grafana
 * Alertmanager
+* Telegram alert notifications
+* Sealed Secrets for secret management
 
 The platform is continuously validated through infrastructure, Kubernetes, networking, storage, GitOps, monitoring, and recovery checks.
 
@@ -607,16 +609,16 @@ The project continues to evolve as additional platform engineering capabilities 
 * [x] etcd backup and restore testing
 * [x] Disaster recovery procedures
 * [x] Kubernetes cluster reconstruction validation
+* [x] Secrets management
+* [x] Infrastructure failure alerting
+* [x] Alert notification integration
 
 ### In Progress
 
-* [ ] Infrastructure failure alerting
-* [ ] Alert notification integration
 * [ ] Production-oriented Grafana dashboards
 * [ ] Kubernetes security baseline
 * [ ] Cilium NetworkPolicy
 * [ ] RBAC hardening
-* [ ] Secrets management
 * [ ] Image vulnerability scanning
 * [ ] Automated failure scenarios
 

@@ -32,6 +32,7 @@ additionalPrometheusRulesMap:
             for: 5m
             labels:
               severity: critical
+              namespace: monitoring
             annotations:
               summary: "Kubernetes node is not ready"
               description: "Kubernetes node {{ $labels.node }} has been NotReady for more than 5 minutes."

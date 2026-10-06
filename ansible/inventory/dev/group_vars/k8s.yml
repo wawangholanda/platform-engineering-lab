@@ -42,3 +42,10 @@ gitops_applications:
     helm_repo_url: "https://prometheus-community.github.io/helm-charts"
     values_path: "environments/dev/kubernetes/monitoring/kube-prometheus-stack/values.yaml"
     namespace: monitoring
+
+  - name: dev-sealed-secrets
+    type: helm
+    chart: sealed-secrets
+    chart_version: "2.20.0"
+    helm_repo_url: "registry-1.docker.io/bitnamicharts"
+    namespace: kube-system

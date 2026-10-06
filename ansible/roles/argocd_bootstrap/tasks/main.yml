@@ -35,7 +35,7 @@
   when: item.type == "git"
 
 
-- name: Create Helm-based Argo CD Applications
+- name: Create Helm-based Argo CD Applications with values
   kubernetes.core.k8s:
     state: present
     kubeconfig: /home/ubuntu/.kube/config
@@ -72,7 +72,44 @@
             - CreateNamespace=true
             - ServerSideApply=true
   loop: "{{ gitops_applications }}"
-  when: item.type == "helm"
+  when:
+    - item.type == "helm"
+    - item.values_path is defined
+
+
+- name: Create Helm-based Argo CD Applications without values
+  kubernetes.core.k8s:
+    state: present
+    kubeconfig: /home/ubuntu/.kube/config
+    definition:
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: "{{ item.name }}"
+        namespace: argocd
+      spec:
+        project: default
+
+        source:
+          repoURL: "{{ item.helm_repo_url }}"
+          chart: "{{ item.chart }}"
+          targetRevision: "{{ item.chart_version }}"
+
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: "{{ item.namespace }}"
+
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+  loop: "{{ gitops_applications }}"
+  when:
+    - item.type == "helm"
+    - item.values_path is not defined
 
 
 # =========================================================
