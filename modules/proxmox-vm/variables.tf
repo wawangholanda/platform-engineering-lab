@@ -82,6 +82,13 @@ variable "ssh_public_key" {
   default     = null
 }
 
+variable "cloud_init_password" {
+  description = "Password for the Cloud-Init user"
+  type        = string
+  sensitive   = true
+  default     = null
+}
+
 variable "startup_order" {
   description = "Proxmox VM startup/shutdown order"
   type        = number

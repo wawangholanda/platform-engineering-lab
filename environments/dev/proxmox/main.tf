@@ -21,11 +21,12 @@ module "k8s_nfs01" {
   startup_delay    = 30
   shutdown_timeout = 120
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.27/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.27/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_cp01" {
@@ -45,11 +46,12 @@ module "k8s_cp01" {
   startup_delay    = 60
   shutdown_timeout = 180
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.20/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.20/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_cp02" {
@@ -69,11 +71,12 @@ module "k8s_cp02" {
   startup_delay    = 60
   shutdown_timeout = 180
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.23/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.23/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_cp03" {
@@ -93,11 +96,12 @@ module "k8s_cp03" {
   startup_delay    = 60
   shutdown_timeout = 180
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.24/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.24/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_worker01" {
@@ -117,11 +121,12 @@ module "k8s_worker01" {
   startup_delay    = 30
   shutdown_timeout = 120
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.21/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.21/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_worker02" {
@@ -141,11 +146,12 @@ module "k8s_worker02" {
   startup_delay    = 30
   shutdown_timeout = 120
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.22/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.22/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_lb01" {
@@ -165,11 +171,12 @@ module "k8s_lb01" {
   startup_delay    = 30
   shutdown_timeout = 120
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.25/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.25/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }
 
 module "k8s_lb02" {
@@ -189,9 +196,10 @@ module "k8s_lb02" {
   startup_delay    = 30
   shutdown_timeout = 120
 
-  bridge         = "vmbr0"
-  ip_address     = "192.168.1.26/24"
-  gateway        = "192.168.1.1"
-  nameserver     = "192.168.1.1"
-  ssh_public_key = var.ssh_public_key
+  bridge              = "vmbr0"
+  ip_address          = "192.168.1.26/24"
+  gateway             = "192.168.1.1"
+  nameserver          = "192.168.1.1"
+  ssh_public_key      = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
 }

@@ -297,7 +297,25 @@ platform-engineering-lab/
 └── .github/
 ```
 
-### 3. Prepare the Workstation
+### 3. Configure the Environment
+
+Quick Start uses a local `.env` file for credentials and environment-specific configuration.
+
+Create it from the tracked example:
+
+```bash
+cp .env.example .env
+```
+
+Configure the required Proxmox, SSH, and Keepalived values in `.env`.
+Telegram Alertmanager notifications are optional. If both
+`TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are configured, Quick Start
+enables Telegram notifications automatically. If either value is empty,
+Telegram configuration is skipped.
+
+**Important:** `.env` contains secrets and must never be committed to Git.
+
+### 4. Prepare the Workstation
 
 The repository includes a dedicated Ansible playbook for preparing a Linux workstation used to operate the platform:
 
@@ -372,7 +390,45 @@ ansible --version
 The workstation playbook is separate from the Kubernetes platform playbook so that the development/operations workstation can be prepared
 independently from the target infrastructure.
 
-### 4. Prepare Terraform
+### 5. Automated Quick Start
+
+For the normal lab deployment workflow, run:
+
+```bash
+./quick-start.sh
+```
+
+Quick Start performs the deployment flow in order:
+
+```text
+Environment Validation
+        ↓
+Terraform Init
+        ↓
+Terraform Validate
+        ↓
+Terraform Plan
+        ↓
+Terraform Confirmation
+        ↓
+Terraform Apply
+        ↓
+Ansible Platform Configuration
+        ↓
+Platform Validation
+```
+
+Terraform variables are loaded from `.env` through the `TF_VAR_*` environment variables, so a `terraform.tfvars` file is not required for this workflow.
+
+The Terraform plan is displayed before applying infrastructure changes and requires confirmation before `terraform apply` runs.
+
+If both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are configured,
+Quick Start automatically configures Alertmanager Telegram notifications.
+If either value is empty, Telegram configuration is skipped.
+
+The script is safe to re-run: Terraform reconciles the infrastructure state and Ansible applies the desired Kubernetes configuration.
+
+### 6. Prepare Terraform
 
 The Proxmox environment is located at:
 
@@ -409,7 +465,7 @@ terraform plan
 
 Detailed Terraform procedures are documented under [`docs/terraform/`](docs/terraform/).
 
-### 5. Provision Infrastructure
+### 7. Provision Infrastructure
 
 When the Terraform plan has been reviewed:
 
@@ -425,7 +481,7 @@ Return to the repository root:
 cd ../../..
 ```
 
-### 6. Prepare Ansible
+### 8. Prepare Ansible
 
 The development inventory is:
 
@@ -480,7 +536,7 @@ ansible-playbook \
 
 For a detailed Ansible workflow, see [`docs/ansible/`](docs/ansible/).
 
-### 7. Configure the Kubernetes Platform
+### 9. Configure the Kubernetes Platform
 
 Run the main Ansible platform playbook after the inventory and infrastructure have been configured:
 
@@ -494,7 +550,7 @@ The playbook is designed to configure the Kubernetes platform through reusable A
 
 Control-plane operations that can affect cluster availability are executed serially where appropriate.
 
-### 8. Enable GitOps
+### 10. Enable GitOps
 
 Argo CD is installed and bootstrapped by the Ansible platform workflow.
 
@@ -502,7 +558,7 @@ After GitOps is configured, Kubernetes resources can be managed from Git rather 
 
 Detailed GitOps procedures are available under [`docs/gitops/`](docs/gitops/).
 
-### 9. Validate the Platform
+### 11. Validate the Platform
 
 The platform includes automated validation for areas such as:
 

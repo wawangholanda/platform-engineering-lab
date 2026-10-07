@@ -69,7 +69,8 @@ resource "proxmox_vm_qemu" "this" {
 
   sshkeys = var.ssh_public_key
 
-  ciuser = "ubuntu"
+  ciuser     = "ubuntu"
+  cipassword = var.cloud_init_password
 
   boot = "order=scsi0"
 
