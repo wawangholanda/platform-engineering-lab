@@ -1,4 +1,18 @@
 ---
+- name: Check whether Debian LXC template exists
+  ansible.builtin.command:
+    cmd: "pveam list {{ proxmox_bootstrap_lxc_template_storage }}"
+  register: proxmox_bootstrap_lxc_templates
+  changed_when: false
+  check_mode: false
+
+- name: Download Debian LXC template
+  ansible.builtin.command:
+    cmd: "pveam download {{ proxmox_bootstrap_lxc_template_storage }} {{ proxmox_bootstrap_lxc_template_name }}"
+  register: proxmox_bootstrap_lxc_template_download
+  changed_when: true
+  when: proxmox_bootstrap_lxc_template_name not in proxmox_bootstrap_lxc_templates.stdout
+
 - name: Check whether Proxmox template exists
   ansible.builtin.command:
     cmd: "qm status {{ proxmox_bootstrap_template_vmid }}"

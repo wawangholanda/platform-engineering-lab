@@ -13,3 +13,6 @@ proxmox_bootstrap_template_storage: "local-zfs"
 proxmox_bootstrap_template_memory: 2048
 proxmox_bootstrap_template_cores: 2
 proxmox_bootstrap_template_bridge: "vmbr0"
+
+proxmox_bootstrap_lxc_template_storage: "local"
+proxmox_bootstrap_lxc_template_name: "debian-12-standard_12.12-1_amd64.tar.zst"
