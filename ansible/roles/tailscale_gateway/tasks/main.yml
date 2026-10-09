@@ -1,0 +1,8 @@
+---
+- name: Configure Tailscale gateway host
+  ansible.builtin.include_tasks: host.yml
+  when: inventory_hostname in groups['proxmox']
+
+- name: Configure Tailscale gateway guest
+  ansible.builtin.include_tasks: guest.yml
+  when: inventory_hostname in groups['tailscale_gateway']

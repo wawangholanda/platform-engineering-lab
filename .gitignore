@@ -186,3 +186,11 @@ Thumbs.db
 *.bak
 *.swp
 *~
+
+#####################################
+# Local Secrets
+#####################################
+
+.secrets/**
+!.secrets/.gitkeep
+!.secrets/.env.example

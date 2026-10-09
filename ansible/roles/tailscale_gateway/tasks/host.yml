@@ -1,0 +1,29 @@
+---
+- name: Check whether Tailscale gateway LXC exists
+  ansible.builtin.command:
+    cmd: "pct status {{ tailscale_gateway_vmid }}"
+  register: tailscale_gateway_status
+  changed_when: false
+  failed_when: false
+
+- name: Fail if Tailscale gateway LXC does not exist
+  ansible.builtin.fail:
+    msg: >-
+      LXC {{ tailscale_gateway_vmid }} does not exist.
+      Run Terraform apply first.
+  when: tailscale_gateway_status.rc != 0
+
+- name: Start Tailscale gateway LXC if stopped
+  ansible.builtin.command:
+    cmd: "pct start {{ tailscale_gateway_vmid }}"
+  changed_when: true
+  when: "'status: running' not in tailscale_gateway_status.stdout"
+
+- name: Wait until Tailscale gateway LXC is running
+  ansible.builtin.command:
+    cmd: "pct status {{ tailscale_gateway_vmid }}"
+  register: tailscale_gateway_runtime_status
+  changed_when: false
+  retries: 10
+  delay: 2
+  until: "'status: running' in tailscale_gateway_runtime_status.stdout"

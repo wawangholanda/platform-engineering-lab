@@ -1,0 +1,292 @@
+---
+- name: Check Tailscale gateway LXC status before reconciliation
+  ansible.builtin.command:
+    argv:
+      - pct
+      - status
+      - "{{ tailscale_gateway_vmid | string }}"
+  register: tailscale_gateway_reconcile_ct_status
+  changed_when: false
+  failed_when: false
+
+- name: Stop reconciliation if Tailscale gateway LXC is not running
+  ansible.builtin.fail:
+    msg: >-
+      Cannot safely reconcile Tailscale state:
+      LXC {{ tailscale_gateway_vmid }} is not confirmed running.
+      Check the CT status and Proxmox connectivity before retrying.
+  when: >-
+    tailscale_gateway_reconcile_ct_status.rc != 0
+    or 'status: running' not in tailscale_gateway_reconcile_ct_status.stdout
+
+- name: Check local Tailscale recovery state
+  ansible.builtin.stat:
+    path: "{{ tailscale_gateway_local_state }}"
+    checksum_algorithm: sha256
+  delegate_to: localhost
+  become: false
+  register: tailscale_gateway_local_state_stat
+
+- name: Validate local Tailscale recovery state
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(d,dict) and bool(d) else 1)"
+      - "{{ tailscale_gateway_local_state }}"
+  delegate_to: localhost
+  become: false
+  register: tailscale_gateway_local_state_validation
+  changed_when: false
+  failed_when: false
+  when:
+    - tailscale_gateway_local_state_stat.stat.exists
+    - (tailscale_gateway_local_state_stat.stat.size | default(0) | int) > 0
+
+- name: Set whether local Tailscale recovery state is valid
+  ansible.builtin.set_fact:
+    tailscale_gateway_local_state_valid: >-
+      {{
+        tailscale_gateway_local_state_stat.stat.exists
+        and (tailscale_gateway_local_state_stat.stat.size | default(0) | int) > 0
+        and (tailscale_gateway_local_state_validation.rc | default(1) | int) == 0
+      }}
+
+- name: Inspect and classify guest Tailscale state
+  ansible.builtin.command:
+    argv:
+      - pct
+      - exec
+      - "{{ tailscale_gateway_vmid | string }}"
+      - --
+      - python3
+      - -c
+      - |
+        import json
+        import os
+        import stat
+        import sys
+
+        path = sys.argv[1]
+        if not os.path.lexists(path):
+            sys.exit(10)
+        try:
+            metadata = os.lstat(path)
+        except OSError:
+            sys.exit(12)
+        if not stat.S_ISREG(metadata.st_mode):
+            sys.exit(12)
+        if metadata.st_size == 0:
+            sys.exit(11)
+        try:
+            with open(path, "r", encoding="utf-8") as state_file:
+                data = json.load(state_file)
+        except (OSError, UnicodeError, ValueError):
+            sys.exit(12)
+        sys.exit(0 if isinstance(data, dict) and bool(data) else 13)
+      - /var/lib/tailscale/tailscaled.state
+  register: tailscale_gateway_guest_state_check
+  changed_when: false
+  failed_when: tailscale_gateway_guest_state_check.rc not in [0, 10, 11, 12, 13]
+
+- name: Determine whether guest state needs restoration
+  ansible.builtin.set_fact:
+    tailscale_gateway_restore_required: >-
+      {{
+        (tailscale_gateway_local_state_valid | bool)
+        and (tailscale_gateway_guest_state_check.rc | int) in [10, 11, 12, 13]
+      }}
+
+- name: Stop if guest state needs recovery but local recovery state is invalid
+  ansible.builtin.fail:
+    msg: >-
+      Tailscale gateway state is missing or invalid, and the local recovery
+      state is not valid. Refusing to overwrite guest state. Restore or verify
+      the local recovery file before retrying.
+  when:
+    - tailscale_gateway_guest_state_check.rc | int in [10, 11, 12, 13]
+    - not (tailscale_gateway_local_state_valid | bool)
+
+- name: Ensure Proxmox state backup directory exists
+  ansible.builtin.file:
+    path: "{{ tailscale_gateway_proxmox_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: tailscale_gateway_restore_required | bool
+
+- name: Copy local recovery state to Proxmox
+  ansible.builtin.copy:
+    src: "{{ tailscale_gateway_local_state }}"
+    dest: "{{ tailscale_gateway_proxmox_state_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: tailscale_gateway_restore_required | bool
+
+- name: Check whether Tailscale service is active before restoration
+  ansible.builtin.command:
+    argv:
+      - pct
+      - exec
+      - "{{ tailscale_gateway_vmid | string }}"
+      - --
+      - systemctl
+      - is-active
+      - tailscaled
+  register: tailscale_gateway_service_status
+  changed_when: false
+  failed_when: >-
+    tailscale_gateway_service_status.rc not in [0, 3]
+    or (tailscale_gateway_service_status.stdout | trim) not in ['active', 'inactive']
+  when: tailscale_gateway_restore_required | bool
+
+- name: Restore local Tailscale state to gateway guest
+  when: tailscale_gateway_restore_required | bool
+  block:
+    - name: Stop Tailscale service before restoring state
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - systemctl
+          - stop
+          - tailscaled
+      changed_when: true
+      when: tailscale_gateway_service_status.stdout | default('') == "active"
+
+    - name: Push local recovery state to a temporary guest file
+      ansible.builtin.command:
+        argv:
+          - pct
+          - push
+          - "{{ tailscale_gateway_vmid | string }}"
+          - "{{ tailscale_gateway_proxmox_state_path }}"
+          - /var/lib/tailscale/tailscaled.state.tmp
+          - --perms
+          - "0600"
+      changed_when: true
+
+    - name: Validate temporary recovery state inside gateway guest
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - python3
+          - -c
+          - |
+            import json
+            import os
+            import stat
+            import sys
+
+            path = sys.argv[1]
+            try:
+                metadata = os.lstat(path)
+            except OSError:
+                sys.exit(1)
+
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size == 0:
+                sys.exit(1)
+
+            try:
+                with open(path, "r", encoding="utf-8") as state_file:
+                    data = json.load(state_file)
+            except (OSError, UnicodeError, ValueError):
+                sys.exit(1)
+
+            sys.exit(0 if isinstance(data, dict) and bool(data) else 1)
+          - /var/lib/tailscale/tailscaled.state.tmp
+      changed_when: false
+
+    - name: Atomically promote validated state inside gateway guest
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - python3
+          - -c
+          - |
+            import os
+            import sys
+
+            temporary, destination = sys.argv[1:3]
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, destination)
+          - /var/lib/tailscale/tailscaled.state.tmp
+          - /var/lib/tailscale/tailscaled.state
+      changed_when: true
+
+  always:
+    - name: Remove temporary recovery state from gateway guest
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - rm
+          - -f
+          - /var/lib/tailscale/tailscaled.state.tmp
+      changed_when: true
+      when:
+        - tailscale_gateway_restore_required | bool
+
+    - name: Start Tailscale service after restoration
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - systemctl
+          - start
+          - tailscaled
+      changed_when: true
+      when:
+        - tailscale_gateway_restore_required | bool
+
+    - name: Verify Tailscale service is active after restoration
+      ansible.builtin.command:
+        argv:
+          - pct
+          - exec
+          - "{{ tailscale_gateway_vmid | string }}"
+          - --
+          - systemctl
+          - is-active
+          - tailscaled
+      register: tailscale_gateway_post_restore_service_status
+      changed_when: false
+      failed_when: >-
+        tailscale_gateway_post_restore_service_status.rc != 0
+        or (tailscale_gateway_post_restore_service_status.stdout | trim) != 'active'
+      when:
+        - tailscale_gateway_restore_required | bool
+
+- name: Validate Tailscale authentication
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      pct exec {{ tailscale_gateway_vmid }} -- tailscale status --json |
+        python3 -c 'import json,sys; \
+        d=json.load(sys.stdin); \
+        s=d.get("Self",{}); \
+        healthy=(d.get("BackendState")=="Running" and d.get("HaveNodeKey") is True); \
+        require_online={{ tailscale_gateway_require_online | bool | ternary("True", "False") }}; \
+        sys.exit(0 if healthy and (not require_online or s.get("Online") is True) else 1)'
+    executable: /bin/bash
+  register: tailscale_gateway_post_restore_health
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: tailscale_gateway_post_restore_health.rc == 0
+  tags:
+    - tailscale_gateway_auth_health

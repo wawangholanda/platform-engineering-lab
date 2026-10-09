@@ -203,3 +203,29 @@ module "k8s_lb02" {
   ssh_public_key      = var.ssh_public_key
   cloud_init_password = var.cloud_init_password
 }
+
+module "tailscale_gateway" {
+  source = "../../../modules/proxmox-lxc"
+
+  vmid        = 110
+  name        = "tailscale-gateway"
+  target_node = "pve"
+  ostemplate  = "local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst"
+
+  storage   = "local-zfs"
+  disk_size = 8
+
+  cores  = 1
+  memory = 512
+
+  bridge     = "vmbr0"
+  ip_address = "192.168.1.28/24"
+  gateway    = "192.168.1.1"
+  nameserver = "192.168.1.1"
+
+  ssh_public_keys     = var.ssh_public_key
+  cloud_init_password = var.cloud_init_password
+
+  start  = true
+  onboot = true
+}

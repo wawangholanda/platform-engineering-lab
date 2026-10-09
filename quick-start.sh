@@ -7,13 +7,23 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 echo "==> Platform Engineering Lab Quick Start"
 echo "    Repository: ${ROOT_DIR}"
 
-if [[ ! -f "${ROOT_DIR}/.env" ]]; then
-  echo "ERROR: .env not found."
-  echo "       Copy .env.example to .env and configure it first."
+SECRETS_ENV="${ROOT_DIR}/.secrets/.env"
+
+if [[ ! -f "${SECRETS_ENV}" ]]; then
+  echo "ERROR: ${SECRETS_ENV} not found."
+  echo "       Create .secrets/.env and configure it first."
   exit 1
 fi
+
 echo "==> Loading environment"
-source "${ROOT_DIR}/.env"
+source "${SECRETS_ENV}"
+if [[ "${ENABLE_TAILSCALE:-}" != "true" &&
+      "${ENABLE_TAILSCALE:-}" != "false" ]]; then
+  echo "ERROR: ENABLE_TAILSCALE must be 'true' or 'false'."
+  exit 1
+fi
+
+echo "    ENABLE_TAILSCALE=${ENABLE_TAILSCALE}"
 
 required_commands=(
   terraform
@@ -62,7 +72,9 @@ echo "==> Validating Terraform configuration"
 terraform validate
 
 echo "==> Creating Terraform plan"
-terraform plan -input=false -out="${TERRAFORM_PLAN}"
+terraform plan \
+  -input=false \
+  -out="${TERRAFORM_PLAN}"
 
 echo "==> Terraform plan created successfully."
 
@@ -85,3 +97,14 @@ ansible-playbook \
   "${ROOT_DIR}/ansible/playbooks/site.yml"
 
 echo "==> Ansible platform configuration completed successfully."
+
+if [[ "${ENABLE_TAILSCALE}" == "true" ]]; then
+  echo "==> Running Ansible Tailscale gateway configuration"
+  ansible-playbook \
+    -i "${ROOT_DIR}/ansible/inventory/dev/hosts.yml" \
+    "${ROOT_DIR}/ansible/playbooks/tailscale-gateway.yml"
+
+  echo "==> Ansible Tailscale gateway configuration completed successfully."
+else
+  echo "==> Tailscale gateway disabled; skipping Tailscale configuration."
+fi

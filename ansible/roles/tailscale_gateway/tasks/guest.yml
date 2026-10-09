@@ -1,0 +1,28 @@
+---
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - curl
+    state: present
+    update_cache: true
+
+- name: Enable IPv4 forwarding
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    state: present
+    sysctl_file: /etc/sysctl.d/99-tailscale-gateway.conf
+    reload: true
+
+- name: Download Tailscale installation script
+  ansible.builtin.get_url:
+    url: https://tailscale.com/install.sh
+    dest: /usr/local/src/tailscale-install.sh
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install Tailscale
+  ansible.builtin.command:
+    cmd: sh /usr/local/src/tailscale-install.sh
+    creates: /usr/sbin/tailscaled

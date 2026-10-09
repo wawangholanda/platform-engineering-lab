@@ -1,0 +1,4 @@
+---
+tailscale_gateway_vmid: 110
+tailscale_gateway_tun_device: "/dev/net/tun"
+tailscale_gateway_require_online: true

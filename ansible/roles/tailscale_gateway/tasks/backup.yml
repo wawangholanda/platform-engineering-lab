@@ -1,0 +1,159 @@
+---
+- name: Check Tailscale gateway LXC status before backup
+  ansible.builtin.command:
+    argv:
+      - pct
+      - status
+      - "{{ tailscale_gateway_vmid | string }}"
+  register: tailscale_gateway_backup_ct_status
+  changed_when: false
+  failed_when: false
+
+- name: Stop backup if Tailscale gateway LXC is not running
+  ansible.builtin.fail:
+    msg: >-
+      Cannot safely back up Tailscale state because LXC
+      {{ tailscale_gateway_vmid }} is not confirmed running.
+      Check the CT status and Proxmox connectivity before retrying.
+  when: >-
+    tailscale_gateway_backup_ct_status.rc != 0
+    or 'status: running' not in tailscale_gateway_backup_ct_status.stdout
+
+- name: Validate Tailscale gateway authentication before backup
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      pct exec {{ tailscale_gateway_vmid }} -- tailscale status --json |
+        python3 -c 'import json,sys; \
+        d=json.load(sys.stdin); \
+        s=d.get("Self",{}); \
+        sys.exit(0 if d.get("BackendState")=="Running" \
+        and d.get("HaveNodeKey") is True and s.get("Online") is True else 1)'
+    executable: /bin/bash
+  register: tailscale_gateway_health_check
+  changed_when: false
+  failed_when: tailscale_gateway_health_check.rc != 0
+- name: Validate Tailscale gateway IPv4 address before backup
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      pct exec {{ tailscale_gateway_vmid }} -- tailscale ip -4 |
+        python3 -c 'import ipaddress,sys; \
+        address=ipaddress.ip_address(sys.stdin.read().strip()); \
+        sys.exit(0 if address.version == 4 else 1)'
+    executable: /bin/bash
+  register: tailscale_gateway_ipv4_check
+  changed_when: false
+  failed_when: tailscale_gateway_ipv4_check.rc != 0
+- name: Ensure Proxmox state backup directory exists
+  ansible.builtin.file:
+    path: /var/lib/tailscale-gateway
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Check whether Tailscale service is active
+  ansible.builtin.command:
+    cmd: "pct exec {{ tailscale_gateway_vmid }} -- systemctl is-active tailscaled"
+  register: tailscale_gateway_service_status
+  changed_when: false
+  failed_when: >-
+    tailscale_gateway_service_status.stdout | trim not in ['active', 'inactive']
+    or tailscale_gateway_service_status.rc not in [0, 3]
+
+- name: Backup Tailscale state safely
+  block:
+    - name: Stop Tailscale service before backing up state
+      ansible.builtin.command:
+        cmd: "pct exec {{ tailscale_gateway_vmid }} -- systemctl stop tailscaled"
+      changed_when: true
+      when: tailscale_gateway_service_status.stdout == "active"
+
+    - name: Backup Tailscale state to temporary file
+      ansible.builtin.command:
+        argv:
+          - pct
+          - pull
+          - "{{ tailscale_gateway_vmid | string }}"
+          - /var/lib/tailscale/tailscaled.state
+          - /var/lib/tailscale-gateway/tailscaled.state.tmp
+      changed_when: true
+
+    - name: Validate temporary Tailscale state file
+      ansible.builtin.command:
+        argv:
+          - python3
+          - -c
+          - |
+            import json
+            import os
+            import stat
+            import sys
+
+            path = sys.argv[1]
+            try:
+                metadata = os.lstat(path)
+            except OSError:
+                sys.exit(1)
+
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_size == 0:
+                sys.exit(1)
+
+            try:
+                with open(path, "r", encoding="utf-8") as state_file:
+                    data = json.load(state_file)
+            except (OSError, UnicodeError, ValueError):
+                sys.exit(1)
+
+            sys.exit(0 if isinstance(data, dict) and bool(data) else 1)
+          - /var/lib/tailscale-gateway/tailscaled.state.tmp
+      register: tailscale_gateway_backup_validation
+      changed_when: false
+      failed_when: tailscale_gateway_backup_validation.rc != 0
+
+    - name: Set permissions on temporary Tailscale state
+      ansible.builtin.file:
+        path: /var/lib/tailscale-gateway/tailscaled.state.tmp
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Promote validated Tailscale state backup
+      ansible.builtin.command:
+        argv:
+          - mv
+          - -f
+          - /var/lib/tailscale-gateway/tailscaled.state.tmp
+          - /var/lib/tailscale-gateway/tailscaled.state
+      changed_when: true
+
+  always:
+    - name: Remove temporary Tailscale state after backup attempt
+      ansible.builtin.file:
+        path: /var/lib/tailscale-gateway/tailscaled.state.tmp
+        state: absent
+
+    - name: Start Tailscale service after backing up state
+      ansible.builtin.command:
+        cmd: "pct exec {{ tailscale_gateway_vmid }} -- systemctl start tailscaled"
+      changed_when: true
+      when: tailscale_gateway_service_status.stdout == "active"
+
+- name: Validate Tailscale authentication after backup
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      pct exec {{ tailscale_gateway_vmid }} -- tailscale status --json |
+        python3 -c 'import json,sys; \
+        d=json.load(sys.stdin); \
+        s=d.get("Self",{}); \
+        sys.exit(0 if d.get("BackendState")=="Running" \
+        and d.get("HaveNodeKey") is True and s.get("Online") is True else 1)'
+    executable: /bin/bash
+  register: tailscale_gateway_post_backup_health
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: tailscale_gateway_post_backup_health.rc == 0
+  when: tailscale_gateway_service_status.stdout == "active"

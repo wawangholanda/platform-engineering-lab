@@ -243,7 +243,7 @@ automation logic.
 
 | Role                        | Responsibility                                     |
 | --------------------------- | -------------------------------------------------- |
-| `proxmox_bootstrap`         | Proxmox Terraform prerequisites and VM template    |
+| `proxmox_bootstrap`         | Proxmox Terraform prerequisites and VM/LXC templates |
 | `k8s_common`                | Common node and Kubernetes prerequisites           |
 | `k8s_control_plane`         | First control-plane bootstrap                      |
 | `kubeconfig`                | Workstation kubeconfig configuration               |
@@ -293,11 +293,15 @@ API Token
         v
 ACL
         |
-        v
-Ubuntu VM Template
-        |
-        v
-Ready for Terraform
+        +-------------------+
+        |                   |
+        v                   v
+Ubuntu VM Template    Debian LXC Template
+        |                   |
+        +---------+---------+
+                  |
+                  v
+           Ready for Terraform
 ```
 
 The bootstrap playbook targets the `proxmox` inventory group.
@@ -456,6 +460,21 @@ k8s_reset_confirm: false
 
 These controls prevent an ordinary reconstruction run from accidentally
 resetting a cluster containing persistent resources.
+
+### Optional Tailscale Gateway
+
+`ansible/playbooks/tailscale-gateway.yml` manages the supporting Tailscale
+gateway and its state recovery; it is not part of the Kubernetes core.
+`quick-start.sh` runs it only when `ENABLE_TAILSCALE=true` is set in
+`.secrets/.env`.
+
+Reconciliation restores guest state only when it is missing or structurally
+invalid and the local recovery file passes validation. If both are invalid,
+it refuses to restore. JSON validation alone does not guarantee
+authentication, so the final Tailscale health check is still required. The
+local recovery file (`.secrets/tailscale/tailscaled.state`) is sensitive and
+must remain gitignored with restrictive permissions; never commit or print
+its contents.
 
 ## Ansible Execution
 

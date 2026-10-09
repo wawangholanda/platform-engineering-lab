@@ -299,21 +299,26 @@ platform-engineering-lab/
 
 ### 3. Configure the Environment
 
-Quick Start uses a local `.env` file for credentials and environment-specific configuration.
+Quick Start reads credentials and environment configuration from `.secrets/.env`.
 
 Create it from the tracked example:
 
 ```bash
-cp .env.example .env
+cp .secrets/.env.example .secrets/.env
+chmod 600 .secrets/.env
 ```
 
-Configure the required Proxmox, SSH, and Keepalived values in `.env`.
+Configure the required Proxmox, SSH, and Keepalived values in
+`.secrets/.env`. Set `ENABLE_TAILSCALE=false` to skip the optional gateway,
+or `true` to enable it.
 Telegram Alertmanager notifications are optional. If both
 `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are configured, Quick Start
 enables Telegram notifications automatically. If either value is empty,
 Telegram configuration is skipped.
 
-**Important:** `.env` contains secrets and must never be committed to Git.
+**Important:** `.secrets/.env` and `.secrets/tailscale/tailscaled.state`
+contain sensitive data and must never be committed to Git. Only
+`.secrets/.env.example` is intended to be tracked.
 
 ### 4. Prepare the Workstation
 
@@ -418,7 +423,9 @@ Ansible Platform Configuration
 Platform Validation
 ```
 
-Terraform variables are loaded from `.env` through the `TF_VAR_*` environment variables, so a `terraform.tfvars` file is not required for this workflow.
+Terraform variables are loaded from `.secrets/.env` through the `TF_VAR_*`
+environment variables, so a `terraform.tfvars` file is not required for this
+workflow.
 
 The Terraform plan is displayed before applying infrastructure changes and requires confirmation before `terraform apply` runs.
 
@@ -427,6 +434,13 @@ Quick Start automatically configures Alertmanager Telegram notifications.
 If either value is empty, Telegram configuration is skipped.
 
 The script is safe to re-run: Terraform reconciles the infrastructure state and Ansible applies the desired Kubernetes configuration.
+
+Tailscale gateway configuration is an optional supporting tool, controlled
+by `ENABLE_TAILSCALE` in `.secrets/.env`. Set it to `true` to run
+`ansible/playbooks/tailscale-gateway.yml`, or `false` to skip it. It supports
+gateway access and recovery and is separate from the Kubernetes core. Keep
+`.secrets/tailscale/tailscaled.state` private; never commit it or print its
+contents.
 
 ### 6. Prepare Terraform
 
