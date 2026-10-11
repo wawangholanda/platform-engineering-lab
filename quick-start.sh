@@ -16,7 +16,9 @@ if [[ ! -f "${SECRETS_ENV}" ]]; then
 fi
 
 echo "==> Loading environment"
+set -a
 source "${SECRETS_ENV}"
+set +a
 if [[ "${ENABLE_TAILSCALE:-}" != "true" &&
       "${ENABLE_TAILSCALE:-}" != "false" ]]; then
   echo "ERROR: ENABLE_TAILSCALE must be 'true' or 'false'."
@@ -24,6 +26,12 @@ if [[ "${ENABLE_TAILSCALE:-}" != "true" &&
 fi
 
 echo "    ENABLE_TAILSCALE=${ENABLE_TAILSCALE}"
+
+if [[ -z "${ARGOCD_DOMAIN:-}" || -z "${GRAFANA_DOMAIN:-}" ]]; then
+  echo "ERROR: ARGOCD_DOMAIN and GRAFANA_DOMAIN must be configured."
+  exit 1
+fi
+
 
 required_commands=(
   terraform
@@ -54,6 +62,27 @@ if [[ -z "${TF_VAR_proxmox_api_url:-}" ||
 fi
 
 echo "==> Environment validation passed."
+
+echo
+echo "Domain configuration will be rendered and published to origin/main."
+echo "Only the three generated domain manifests will be committed."
+echo "This must complete successfully before Terraform starts."
+
+if [[ ! -t 0 ]]; then
+  echo "ERROR: Domain publication requires an interactive terminal."
+  exit 1
+fi
+
+read -r -p "Publish domain configuration now? [y/N] " domain_confirm
+
+if [[ ! "${domain_confirm}" =~ ^[Yy]$ ]]; then
+  echo "==> Domain publication cancelled; Terraform will not run."
+  exit 1
+fi
+
+echo "==> Publishing domain configuration"
+"${ROOT_DIR}/scripts/publish-domain-config.sh"
+echo "==> Domain configuration publication completed."
 
 TERRAFORM_DIR="${ROOT_DIR}/environments/dev/proxmox"
 TERRAFORM_PLAN="$(mktemp)"

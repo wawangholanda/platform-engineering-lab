@@ -1,0 +1,38 @@
+---
+kubeProxy:
+  enabled: false
+
+grafana:
+  enabled: true
+  defaultDashboardsTimezone: browser
+  grafana.ini:
+    server:
+      root_url: https://{{GRAFANA_DOMAIN}}
+      serve_from_sub_path: false
+
+prometheus:
+  enabled: true
+
+alertmanager:
+  enabled: true
+
+crds:
+  enabled: true
+  upgradeJob:
+    enabled: true
+    forceConflicts: true
+
+additionalPrometheusRulesMap:
+  kubernetes-node-alerts:
+    groups:
+      - name: kubernetes-node-alerts
+        rules:
+          - alert: KubernetesNodeNotReady
+            expr: kube_node_status_condition{condition="Ready",status="true"} == 0
+            for: 5m
+            labels:
+              severity: critical
+              namespace: monitoring
+            annotations:
+              summary: "Kubernetes node is not ready"
+              description: "Kubernetes node {{ $labels.node }} has been NotReady for more than 5 minutes."
