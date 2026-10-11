@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+
+expected_address="{{ tailscale_reverse_proxy_bind_address }}"
+attempt=0
+
+while [ "$attempt" -lt 60 ]; do
+    if /usr/sbin/ip -4 address show dev tailscale0 2>/dev/null \
+        | /usr/bin/grep -Fq "inet ${expected_address}/"; then
+        exit 0
+    fi
+
+    attempt=$((attempt + 1))
+    sleep 1
+done
+
+/usr/bin/logger -t nginx-tailscale-wait \
+    "Tailscale address ${expected_address} was not available after 60 seconds"
+exit 1

@@ -1,0 +1,259 @@
+---
+- name: Validate reverse proxy domains
+  ansible.builtin.assert:
+    that:
+      - argocd_domain is defined
+      - argocd_domain is string
+      - argocd_domain | length <= 253
+      - argocd_domain is match('^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
+      - grafana_domain is defined
+      - grafana_domain is string
+      - grafana_domain | length <= 253
+      - grafana_domain is match('^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?([.][A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
+      - argocd_domain | lower != grafana_domain | lower
+    fail_msg: >-
+      argocd_domain and grafana_domain must be distinct, valid DNS hostnames
+      with valid label lengths and no trailing dot.
+
+- name: Read Cloudflare and Let's Encrypt credentials from environment
+  ansible.builtin.set_fact:
+    tailscale_reverse_proxy_cloudflare_api_token: "{{ lookup('ansible.builtin.env', 'CLOUDFLARE_API_TOKEN') }}"
+    tailscale_reverse_proxy_certbot_email: "{{ lookup('ansible.builtin.env', 'LETSENCRYPT_EMAIL') }}"
+  no_log: true
+
+- name: Validate required environment variables
+  ansible.builtin.assert:
+    that:
+      - tailscale_reverse_proxy_cloudflare_api_token | default('') | length > 0
+      - tailscale_reverse_proxy_certbot_email | default('') | length > 0
+    fail_msg: Required Cloudflare token or Let's Encrypt email is missing.
+  no_log: true
+
+- name: Install reverse proxy and DNS challenge packages
+  ansible.builtin.apt:
+    name:
+      - nginx
+      - certbot
+      - python3-certbot-dns-cloudflare
+    state: present
+    update_cache: true
+    policy_rc_d: 101
+
+- name: Disable Debian default Nginx site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Create Cloudflare credentials directory
+  ansible.builtin.file:
+    path: /etc/letsencrypt
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Install Cloudflare DNS credentials
+  ansible.builtin.template:
+    src: cloudflare.ini.j2
+    dest: "{{ tailscale_reverse_proxy_cloudflare_credentials }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Check whether the certificate already exists
+  ansible.builtin.stat:
+    path: "{{ tailscale_reverse_proxy_certificate_directory }}/fullchain.pem"
+  register: tailscale_reverse_proxy_certificate
+
+
+- name: Check whether the certificate private key already exists
+  ansible.builtin.stat:
+    path: "{{ tailscale_reverse_proxy_certificate_directory }}/privkey.pem"
+  register: tailscale_reverse_proxy_existing_privkey
+
+- name: Stop if an existing certificate has no private key
+  ansible.builtin.assert:
+    that:
+      - not tailscale_reverse_proxy_certificate.stat.exists or tailscale_reverse_proxy_existing_privkey.stat.exists
+    fail_msg: >-
+      The certificate chain exists but its private key is missing.
+      Inspect the Certbot state before attempting certificate recovery.
+
+
+- name: Check whether the existing certificate matches the Argo CD domain
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ tailscale_reverse_proxy_certificate_directory }}/fullchain.pem"
+      - -noout
+      - -checkhost
+      - "{{ tailscale_reverse_proxy_domains[0] }}"
+  register: tailscale_reverse_proxy_argocd_cert_check
+  changed_when: false
+  failed_when: false
+  when: tailscale_reverse_proxy_certificate.stat.exists
+
+- name: Check whether the existing certificate matches the Grafana domain
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ tailscale_reverse_proxy_certificate_directory }}/fullchain.pem"
+      - -noout
+      - -checkhost
+      - "{{ tailscale_reverse_proxy_domains[1] }}"
+  register: tailscale_reverse_proxy_grafana_cert_check
+  changed_when: false
+  failed_when: false
+  when: tailscale_reverse_proxy_certificate.stat.exists
+
+- name: Check whether the existing certificate is valid for at least 30 more days
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - x509
+      - -in
+      - "{{ tailscale_reverse_proxy_certificate_directory }}/fullchain.pem"
+      - -noout
+      - -checkend
+      - "2592000"
+  register: tailscale_reverse_proxy_cert_expiry_check
+  changed_when: false
+  failed_when: false
+  when: tailscale_reverse_proxy_certificate.stat.exists
+
+- name: Request SAN certificate using Cloudflare DNS-01
+  ansible.builtin.command:
+    argv:
+      - certbot
+      - certonly
+      - --non-interactive
+      - --agree-tos
+      - --email
+      - "{{ tailscale_reverse_proxy_certbot_email }}"
+      - --authenticator
+      - dns-cloudflare
+      - --dns-cloudflare-credentials
+      - "{{ tailscale_reverse_proxy_cloudflare_credentials }}"
+      - --dns-cloudflare-propagation-seconds
+      - "{{ tailscale_reverse_proxy_certbot_propagation_seconds | string }}"
+      - --cert-name
+      - "{{ tailscale_reverse_proxy_certificate_name }}"
+      - -d
+      - "{{ tailscale_reverse_proxy_domains[0] }}"
+      - -d
+      - "{{ tailscale_reverse_proxy_domains[1] }}"
+  changed_when: true
+  when: >-
+    not tailscale_reverse_proxy_certificate.stat.exists
+    or tailscale_reverse_proxy_argocd_cert_check.rc | default(1) != 0
+    or tailscale_reverse_proxy_grafana_cert_check.rc | default(1) != 0
+    or tailscale_reverse_proxy_cert_expiry_check.rc | default(1) != 0
+  no_log: true
+
+- name: Verify certificate chain file exists
+  ansible.builtin.stat:
+    path: "{{ tailscale_reverse_proxy_certificate_directory }}/fullchain.pem"
+  register: tailscale_reverse_proxy_fullchain
+  failed_when: not tailscale_reverse_proxy_fullchain.stat.exists
+
+- name: Verify certificate private key file exists
+  ansible.builtin.stat:
+    path: "{{ tailscale_reverse_proxy_certificate_directory }}/privkey.pem"
+  register: tailscale_reverse_proxy_privkey
+  failed_when: not tailscale_reverse_proxy_privkey.stat.exists
+
+- name: Create Certbot deploy hook directory
+  ansible.builtin.file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Certbot Nginx reload hook
+  ansible.builtin.template:
+    src: reload-nginx-after-renewal.sh.j2
+    dest: /etc/letsencrypt/renewal-hooks/deploy/reload-nginx-after-renewal
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Create Nginx systemd drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/nginx.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install Tailscale IP readiness check
+  ansible.builtin.template:
+    src: wait-for-tailscale-ip.sh.j2
+    dest: /usr/local/sbin/wait-for-tailscale-ip
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Configure Nginx startup dependency on Tailscale
+  ansible.builtin.template:
+    src: nginx-tailscale.conf.j2
+    dest: /etc/systemd/system/nginx.service.d/tailscale.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: tailscale_reverse_proxy_systemd_dropin
+
+- name: Reload systemd manager configuration
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when:
+    - not ansible_check_mode
+    - tailscale_reverse_proxy_systemd_dropin.changed
+
+- name: Install Nginx reverse proxy configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ tailscale_reverse_proxy_nginx_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Validate and reload Nginx
+
+- name: Validate Nginx configuration before starting service
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Check whether Nginx is already active
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - is-active
+      - nginx
+  register: tailscale_reverse_proxy_nginx_active
+  changed_when: false
+  failed_when: false
+
+- name: Restart active Nginx to apply changed systemd drop-in
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+  when:
+    - not ansible_check_mode
+    - tailscale_reverse_proxy_systemd_dropin.changed
+    - tailscale_reverse_proxy_nginx_active.rc | default(1) == 0
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    enabled: true
+    state: started
+  when: not ansible_check_mode

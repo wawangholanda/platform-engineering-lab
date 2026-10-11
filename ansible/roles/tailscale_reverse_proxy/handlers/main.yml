@@ -1,0 +1,16 @@
+---
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    argv:
+      - nginx
+      - -t
+  changed_when: false
+  listen: Validate and reload Nginx
+  when: not ansible_check_mode
+
+- name: Reload Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  listen: Validate and reload Nginx
+  when: not ansible_check_mode

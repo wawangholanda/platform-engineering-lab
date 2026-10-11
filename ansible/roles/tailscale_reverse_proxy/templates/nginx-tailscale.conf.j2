@@ -1,0 +1,8 @@
+[Unit]
+Wants=tailscaled.service
+After=tailscaled.service
+
+[Service]
+ExecStartPre=
+ExecStartPre=/usr/local/sbin/wait-for-tailscale-ip
+ExecStartPre=/usr/sbin/nginx -t -q -g 'daemon on; master_process on;'

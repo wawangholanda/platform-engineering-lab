@@ -1,0 +1,9 @@
+---
+- name: Configure private Tailscale reverse proxy
+  hosts: tailscale_gateway
+  become: true
+  gather_facts: true
+  roles:
+    - role: tailscale_reverse_proxy
+      tags:
+        - tailscale_reverse_proxy

@@ -1,0 +1,16 @@
+---
+tailscale_reverse_proxy_domains:
+  - "{{ argocd_domain }}"
+  - "{{ grafana_domain }}"
+
+tailscale_reverse_proxy_upstream_port: 80
+
+tailscale_reverse_proxy_certificate_name: "tailscale-private"
+tailscale_reverse_proxy_certificate_directory: "/etc/letsencrypt/live/tailscale-private"
+tailscale_reverse_proxy_cloudflare_credentials: "/etc/letsencrypt/cloudflare.ini"
+
+tailscale_reverse_proxy_nginx_config_directory: "/etc/nginx/conf.d"
+tailscale_reverse_proxy_nginx_config_file: "/etc/nginx/conf.d/tailscale-private.conf"
+
+tailscale_reverse_proxy_certbot_email: ""
+tailscale_reverse_proxy_certbot_propagation_seconds: 30

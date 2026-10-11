@@ -1,0 +1,3 @@
+---
+tailscale_reverse_proxy_bind_address: "100.121.197.34"
+tailscale_reverse_proxy_upstream_address: "192.168.1.240"

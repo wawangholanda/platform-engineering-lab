@@ -682,6 +682,9 @@ The project continues to evolve as additional platform engineering capabilities 
 * [x] Secrets management
 * [x] Infrastructure failure alerting
 * [x] Alert notification integration
+* [x] Tailscale private access
+* [x] Private Grafana access validation
+* [x] Private Argo CD access validation
 
 ### In Progress
 
@@ -694,10 +697,7 @@ The project continues to evolve as additional platform engineering capabilities 
 
 ### Planned
 
-* [ ] Tailscale private access
 * [ ] HA Tailscale access through lb01/lb02
-* [ ] Private Grafana access validation
-* [ ] Private Argo CD access validation
 * [ ] GitHub Actions / CI/CD automation
 * [ ] Terraform CI/CD
 * [ ] Ansible CI/CD

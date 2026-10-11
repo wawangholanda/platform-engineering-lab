@@ -1,0 +1,12 @@
+#!/bin/sh
+set -eu
+
+if /usr/bin/systemctl is-active --quiet nginx; then
+    if /usr/sbin/nginx -t; then
+        /usr/bin/systemctl reload nginx
+    else
+        /usr/bin/logger -t certbot-nginx-reload \
+            "Nginx configuration test failed after certificate renewal; reload skipped"
+        exit 1
+    fi
+fi
